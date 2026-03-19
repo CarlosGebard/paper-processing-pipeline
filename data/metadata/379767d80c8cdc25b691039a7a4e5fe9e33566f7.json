@@ -1,0 +1,22 @@
+{
+  "paperId": "379767d80c8cdc25b691039a7a4e5fe9e33566f7",
+  "title": "Association between vitamin D supplementation and mortality: systematic review and meta-analysis",
+  "year": 2019,
+  "citationCount": 305,
+  "doi": "10.1136/bmj.l4673",
+  "arxiv": null,
+  "pdf_url": "https://www.bmj.com/content/bmj/366/bmj.l4673.full.pdf",
+  "abstract": "Abstract Objective To investigate whether vitamin D supplementation is associated with lower mortality in adults. Design Systematic review and meta-analysis of randomised controlled trials. Data sources Medline, Embase, and the Cochrane Central Register from their inception to 26 December 2018. Eligibility criteria for selecting studies Randomised controlled trials comparing vitamin D supplementation with a placebo or no treatment for mortality were included. Independent data extraction was conducted and study quality assessed. A meta-analysis was carried out by using fixed effects and random effects models to calculate risk ratio of death in the group receiving vitamin D supplementation and the control group. Main outcome measures All cause mortality. Results 52 trials with a total of 75\u2009454 participants were identified. Vitamin D supplementation was not associated with all cause mortality (risk ratio 0.98, 95% confidence interval 0.95 to 1.02, I2=0%), cardiovascular mortality (0.98, 0.88 to 1.08, 0%), or non-cancer, non-cardiovascular mortality (1.05, 0.93 to 1.18, 0%). Vitamin D supplementation statistically significantly reduced the risk of cancer death (0.84, 0.74 to 0.95, 0%). In subgroup analyses, all cause mortality was significantly lower in trials with vitamin D3 supplementation than in trials with vitamin D2 supplementation (P for interaction=0.04); neither vitamin D3 nor vitamin D2 was associated with a statistically significant reduction in all cause mortality. Conclusions Vitamin D supplementation alone was not associated with all cause mortality in adults compared with placebo or no treatment. Vitamin D supplementation reduced the risk of cancer death by 16%. Additional large clinical studies are needed to determine whether vitamin D3 supplementation is associated with lower all cause mortality. Study registration PROSPERO registration number CRD42018117823.",
+  "parent_papers": [
+    "DOI:10.1056/NEJMoa1809944"
+  ],
+  "authors": [
+    "Yu Zhang",
+    "Fang Fang",
+    "Jingjing Tang",
+    "L. Jia",
+    "Yuning Feng",
+    "P. Xu",
+    "A. Faramand"
+  ]
+}

@@ -1,0 +1,29 @@
+.codex/
+.env
+.venv/
+__pycache__/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.pyc
+*.pyo
+*.pyd
+*.egg-info/
+.coverage
+htmlcov/
+.DS_Store
+
+# Heuristics local caches
+scripts/heuristics_model/.pytest_cache/
+scripts/heuristics_model/.mypy_cache/
+scripts/heuristics_model/.ruff_cache/
+scripts/heuristics_model/src/heuristics_model.egg-info/
+scripts/heuristics_model/tests/__pycache__/
+
+# Runtime pipeline outputs
+data/raw_pdf/
+data/input_pdfs/
+data/docling_extraction/
+data/post_heuristics/
+data/claims/
+data/next_batch/

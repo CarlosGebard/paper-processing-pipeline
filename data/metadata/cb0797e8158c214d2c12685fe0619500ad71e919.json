@@ -1,0 +1,18 @@
+{
+  "paperId": "cb0797e8158c214d2c12685fe0619500ad71e919",
+  "title": "The Anti-Inflammatory Properties of Phytochemicals and Their Effects on Epigenetic Mechanisms Involved in TLR4/NF-κB-Mediated Inflammation",
+  "year": 2021,
+  "citationCount": 165,
+  "doi": "10.3389/fimmu.2021.606069",
+  "arxiv": null,
+  "pdf_url": "https://www.frontiersin.org/articles/10.3389/fimmu.2021.606069/pdf",
+  "abstract": "Innate immune response induces positive inflammatory transducers and regulators in order to attack pathogens, while simultaneously negative signaling regulators are transcribed to maintain innate immune homeostasis and to avoid persistent inflammatory immune responses. The gene expression of many of these regulators is controlled by different epigenetic modifications. The remarkable impact of epigenetic changes in inducing or suppressing inflammatory signaling is being increasingly recognized. Several studies have highlighted the interplay of histone modification, DNA methylation, and post-transcriptional miRNA-mediated modifications in inflammatory diseases, and inflammation-mediated tumorigenesis. Targeting these epigenetic alterations affords the opportunity of attenuating different inflammatory dysregulations. In this regard, many studies have identified the significant anti-inflammatory properties of distinct naturally-derived phytochemicals, and revealed their regulatory capacity. In the current review, we demonstrate the signaling cascade during the immune response and the epigenetic modifications that take place during inflammation. Moreover, we also provide an updated overview of phytochemicals that target these mechanisms in macrophages and other experimental models, and go on to illustrate the effects of these phytochemicals in regulating epigenetic mechanisms and attenuating aberrant inflammation.",
+  "parent_papers": [
+    "DOI:10.1056/NEJMoa1200303"
+  ],
+  "authors": [
+    "Haidy A Saleh",
+    "Mohamed H. Yousef",
+    "Anwar Abdelnaser"
+  ]
+}

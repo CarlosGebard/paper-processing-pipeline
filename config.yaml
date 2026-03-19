@@ -1,0 +1,39 @@
+seed_paper: "DOI:10.1056/NEJM199704173361601"
+
+exploration:
+  limit: 50
+  min_citations: 100
+  min_year: 2000
+  buffer_size: 50
+  max_abstract_words: 300
+
+api:
+  semantic_scholar_url: "https://api.semanticscholar.org/graph/v1"
+
+rate_limit:
+  base_delay: 1.0
+  max_delay: 30
+  retries: 5
+
+storage:
+  papers_dir: "data/metadata"
+  discarded_dir: "data/discarded_papers"
+  registry_dir: "data/registry"
+  raw_pdf_dir: "data/raw_pdf"
+
+docling_ingestion:
+  input_dir: "data/input_pdfs"
+  output_dir: "data/docling_extraction/manual"
+  json_dir: "data/docling_extraction/json"
+  markdown_dir: "data/docling_extraction/markdown"
+
+heuristics:
+  full_dir: "data/post_heuristics/full_doc"
+  final_dir: "data/post_heuristics/final"
+
+llm_to_claim:
+  input_dir: "data/post_heuristics/final"
+  output_dir: "data/claims"
+  model: "gpt-5-mini"
+  max_claims: 10
+  temperature: 0.0

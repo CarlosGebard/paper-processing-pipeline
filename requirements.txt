@@ -1,0 +1,23 @@
+# Unified runtime requirements for paper-processing-pipeline
+# Install from repo root:
+#   python -m venv .venv
+#   source .venv/bin/activate
+#   pip install -r requirements.txt
+
+# PDF ingestion
+# Source: docling_ingestion/requirements.txt
+docling
+
+# Metadata retrieval / normalization
+# Source: metadata_retrieval scripts
+requests
+PyYAML
+
+# Heuristics package (local editable install)
+# Source: scripts/heuristics_model/pyproject.toml
+-e ./scripts/heuristics_model
+
+# Optional dev/test tools
+# pytest>=8.0
+# ruff>=0.6
+# mypy>=1.10

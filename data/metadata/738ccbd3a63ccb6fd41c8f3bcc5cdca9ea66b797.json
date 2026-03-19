@@ -1,0 +1,20 @@
+{
+  "paperId": "738ccbd3a63ccb6fd41c8f3bcc5cdca9ea66b797",
+  "title": "Inflammation in Renal Diseases: New and Old Players",
+  "year": 2019,
+  "citationCount": 274,
+  "doi": "10.3389/fphar.2019.01192",
+  "arxiv": null,
+  "pdf_url": "https://fjfsdata01prod.blob.core.windows.net/articles/files/452338/pubmed-zip/.versions/2/.package-entries/fphar-10-01192.pdf?sv=2018-03-28&sr=b&sig=5lxepfxpjr%2BtaARRXBGknHIDWIgmlrenr40VmQZBLiE%3D&se=2021-02-21T20%3A26%3A05Z&sp=r&rscd=attachment%3B%20filename%2A%3DUTF-8%27%27fphar-10-01192.pdf",
+  "abstract": "Inflammation, a process intimately linked to renal disease, can be defined as a complex network of interactions between renal parenchymal cells and resident immune cells, such as macrophages and dendritic cells, coupled with recruitment of circulating monocytes, lymphocytes, and neutrophils. Once stimulated, these cells activate specialized structures such as Toll-like receptor and Nod-like receptor (NLR). By detecting danger-associated molecules, these receptors can set in motion major innate immunity pathways such as nuclear factor ĸB (NF-ĸB) and NLRP3 inflammasome, causing metabolic reprogramming and phenotype changes of immune and parenchymal cells and triggering the secretion of a number of inflammatory mediators that can cause irreversible tissue damage and functional loss. Growing evidence suggests that this response can be deeply impacted by the crosstalk between the kidneys and other organs, such as the gut. Changes in the composition and/or metabolite production of the gut microbiota can influence inflammation, oxidative stress, and fibrosis, thus offering opportunities to positively manipulate the composition and/or functionality of gut microbiota and, consequentially, ameliorate deleterious consequences of renal diseases. In this review, we summarize the most recent evidence that renal inflammation can be ameliorated by interfering with the gut microbiota through the administration of probiotics, prebiotics, and postbiotics. In addition to these innovative approaches, we address the recent discovery of new targets for drugs long in use in clinical practice. Angiotensin II receptor antagonists, NF-ĸB inhibitors, thiazide diuretics, and antimetabolic drugs can reduce renal macrophage infiltration and slow down the progression of renal disease by mechanisms independent of those usually attributed to these compounds. Allopurinol, an inhibitor of uric acid production, has been shown to decrease renal inflammation by limiting activation of the NLRP3 inflammasome. So far, these protective effects have been shown in experimental studies only. Clinical studies will establish whether these novel strategies can be incorporated into...",
+  "parent_papers": [
+    "DOI:10.1056/NEJMoa1200303"
+  ],
+  "authors": [
+    "Vinícius Andrade-Oliveira",
+    "O. Foresto-Neto",
+    "I. Watanabe",
+    "R. Zatz",
+    "N. Câmara"
+  ]
+}

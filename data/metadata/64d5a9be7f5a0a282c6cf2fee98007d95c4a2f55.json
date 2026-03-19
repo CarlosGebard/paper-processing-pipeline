@@ -1,0 +1,19 @@
+{
+  "paperId": "64d5a9be7f5a0a282c6cf2fee98007d95c4a2f55",
+  "title": "Gut Microbiota in Hypertension and Atherosclerosis: A Review",
+  "year": 2020,
+  "citationCount": 328,
+  "doi": "10.3390/nu12102982",
+  "arxiv": null,
+  "pdf_url": "https://www.mdpi.com/2072-6643/12/10/2982/pdf?version=1601377162",
+  "abstract": "Gut microbiota and its metabolites such as short chain fatty acids (SCFA), lipopolysaccharides (LPS), and trimethylamine-N-oxide (TMAO) impact cardiovascular health. In this review, we discuss how gut microbiota and gut metabolites can affect hypertension and atherosclerosis. Hypertensive patients were shown to have lower alpha diversity, lower abundance of SCFA-producing microbiota, and higher abundance of gram-negative bacteria, which are a source of LPS. Animal studies point towards a direct role for SCFAs in blood pressure regulation and show that LPS has pro-inflammatory effects. Translocation of LPS into the systemic circulation is a consequence of increased gut permeability. Atherosclerosis, a multifactorial disease, is influenced by the gut microbiota through multiple pathways. Many studies have focused on the pro-atherogenic role of TMAO, however, it is not clear if this is a causal factor. In addition, gut microbiota play a key role in bile acid metabolism and some interventions targeting bile acid receptors tend to decrease atherosclerosis. Concluding, gut microbiota affect hypertension and atherosclerosis through many pathways, providing a wide range of potential therapeutic targets. Challenges ahead include translation of findings and mechanisms to humans and development of therapeutic interventions that target cardiovascular risk by modulation of gut microbes and metabolites.",
+  "parent_papers": [
+    "DOI:10.1056/NEJMoa1200303"
+  ],
+  "authors": [
+    "B. Verhaar",
+    "A. Prodan",
+    "M. Nieuwdorp",
+    "M. Muller"
+  ]
+}

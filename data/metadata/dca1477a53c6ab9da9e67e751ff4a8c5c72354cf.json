@@ -1,0 +1,20 @@
+{
+  "paperId": "dca1477a53c6ab9da9e67e751ff4a8c5c72354cf",
+  "title": "The potential role of vitamin D supplementation as a gut microbiota modifier in healthy individuals",
+  "year": 2020,
+  "citationCount": 166,
+  "doi": "10.1038/s41598-020-77806-4",
+  "arxiv": null,
+  "pdf_url": "https://www.nature.com/articles/s41598-020-77806-4.pdf",
+  "abstract": "Vitamin D deficiency affects approximately 80% of individuals in some countries and has been linked with gut dysbiosis and inflammation. While the benefits of vitamin D supplementation on the gut microbiota have been studied in patients with chronic diseases, its effects on the microbiota of otherwise healthy individuals is unclear. Moreover, whether effects on the microbiota can explain some of the marked inter-individual variation in responsiveness to vitamin D supplementation is unknown. Here, we administered vitamin D to 80 otherwise healthy vitamin D-deficient women, measuring serum 25(OH) D levels in blood and characterizing their gut microbiota pre- and post- supplementation using 16S rRNA gene sequencing. Vitamin D supplementation significantly increased gut microbial diversity. Specifically, the Bacteroidetes to Firmicutes ratio increased, along with the abundance of the health-promoting probiotic taxa Akkermansia and Bifidobacterium. Significant variations in the two-dominant genera, Bacteroides and Prevotella, indicated a variation in enterotypes following supplementation. Comparing supplementation responders and non-responders we found more pronounced changes in abundance of major phyla in responders, and a significant decrease in Bacteroides acidifaciens in non-responders. Altogether, our study highlights the positive impact of vitamin D supplementation on the gut microbiota and the potential for the microbial gut signature to affect vitamin D response.",
+  "parent_papers": [
+    "DOI:10.1056/NEJMoa1809944"
+  ],
+  "authors": [
+    "Parul Singh",
+    "A. Rawat",
+    "Mariam Alwakeel",
+    "E. Sharif",
+    "S. Al Khodor"
+  ]
+}

@@ -1,0 +1,18 @@
+{
+  "paperId": "dd449e7a63d28770ff2593a91ccf5e9be898aeb6",
+  "title": "The Role of Oxidative Stress in Atherosclerosis",
+  "year": 2022,
+  "citationCount": 304,
+  "doi": "10.3390/cells11233843",
+  "arxiv": null,
+  "pdf_url": "https://www.mdpi.com/2073-4409/11/23/3843/pdf?version=1669867053",
+  "abstract": "Atherosclerosis is a chronic inflammatory disease of the vascular system and is the leading cause of cardiovascular diseases worldwide. Excessive generation of reactive oxygen species (ROS) leads to a state of oxidative stress which is a major risk factor for the development and progression of atherosclerosis. ROS are important for maintaining vascular health through their potent signalling properties. However, ROS also activate pro-atherogenic processes such as inflammation, endothelial dysfunction and altered lipid metabolism. As such, considerable efforts have been made to identify and characterise sources of oxidative stress in blood vessels. Major enzymatic sources of vascular ROS include NADPH oxidases, xanthine oxidase, nitric oxide synthases and mitochondrial electron transport chains. The production of ROS is balanced by ROS-scavenging antioxidant systems which may become dysfunctional in disease, contributing to oxidative stress. Changes in the expression and function of ROS sources and antioxidants have been observed in human atherosclerosis while in vitro and in vivo animal models have provided mechanistic insight into their functions. There is considerable interest in utilising antioxidant molecules to balance vascular oxidative stress, yet clinical trials are yet to demonstrate any atheroprotective effects of these molecules. Here we will review the contribution of ROS and oxidative stress to atherosclerosis and will discuss potential strategies to ameliorate these aspects of the disease.",
+  "parent_papers": [
+    "DOI:10.1056/NEJMoa1809944"
+  ],
+  "authors": [
+    "M. Batty",
+    "M. Bennett",
+    "E. Yu"
+  ]
+}

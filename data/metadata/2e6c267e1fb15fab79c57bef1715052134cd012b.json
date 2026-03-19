@@ -1,0 +1,17 @@
+{
+  "paperId": "2e6c267e1fb15fab79c57bef1715052134cd012b",
+  "title": "Vitamin D Signaling in Inflammation and Cancer: Molecular Mechanisms and Therapeutic Implications",
+  "year": 2020,
+  "citationCount": 139,
+  "doi": "10.3390/molecules25143219",
+  "arxiv": null,
+  "pdf_url": "https://www.mdpi.com/1420-3049/25/14/3219/pdf?version=1594800575",
+  "abstract": "Vitamin D and its active metabolites are important nutrients for human skeletal health. UV irradiation of skin converts 7-dehydrocholesterol into vitamin D3, which metabolized in the liver and kidneys into its active form, 1\u03b1,25-dihydroxyvitamin D3. Apart from its classical role in calcium and phosphate regulation, scientists have shown that the vitamin D receptor is expressed in almost all tissues of the body, hence it has numerous biological effects. These includes fetal and adult homeostatic functions in development and differentiation of metabolic, epidermal, endocrine, neurological and immunological systems of the body. Moreover, the expression of vitamin D receptor in the majority of immune cells and the ability of these cells to actively metabolize 25(OH)D3 into its active form 1,25(OH)2D3 reinforces the important role of vitamin D signaling in maintaining a healthy immune system. In addition, several studies have showed that vitamin D has important regulatory roles of mechanisms controlling proliferation, differentiation and growth. The administration of vitamin D analogues or the active metabolite of vitamin D activates apoptotic pathways, has antiproliferative effects and inhibits angiogenesis. This review aims to provide an up-to-date overview on the effects of vitamin D and its receptor (VDR) in regulating inflammation, different cell death modalities and cancer. It also aims to investigate the possible therapeutic benefits of vitamin D and its analogues as anticancer agents.",
+  "parent_papers": [
+    "DOI:10.1056/NEJMoa1809944"
+  ],
+  "authors": [
+    "A. El-Sharkawy",
+    "A. Malki"
+  ]
+}

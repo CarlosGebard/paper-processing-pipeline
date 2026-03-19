@@ -1,0 +1,22 @@
+{
+  "paperId": "1ce4990d8b7332e78a12b1db42291f1ce5e177f2",
+  "title": "Immune Cells in the BBB Disruption After Acute Ischemic Stroke: Targets for Immune Therapy?",
+  "year": 2021,
+  "citationCount": 315,
+  "doi": "10.3389/fimmu.2021.678744",
+  "arxiv": null,
+  "pdf_url": "https://www.frontiersin.org/articles/10.3389/fimmu.2021.678744/pdf",
+  "abstract": "Blood-Brain Barrier (BBB) disruption is an important pathophysiological process of acute ischemic stroke (AIS), resulting in devastating malignant brain edema and hemorrhagic transformation. The rapid activation of immune cells plays a critical role in BBB disruption after ischemic stroke. Infiltrating blood-borne immune cells (neutrophils, monocytes, and T lymphocytes) increase BBB permeability, as they cause microvascular disorder and secrete inflammation-associated molecules. In contrast, they promote BBB repair and angiogenesis in the latter phase of ischemic stroke. The profound immunological effects of cerebral immune cells (microglia, astrocytes, and pericytes) on BBB disruption have been underestimated in ischemic stroke. Post-stroke microglia and astrocytes can adopt both an M1/A1 or M2/A2 phenotype, which influence BBB integrity differently. However, whether pericytes acquire microglia phenotype and exert immunological effects on the BBB remains controversial. Thus, better understanding the inflammatory mechanism underlying BBB disruption can lead to the identification of more promising biological targets to develop treatments that minimize the onset of life-threatening complications and to improve existing treatments in patients. However, early attempts to inhibit the infiltration of circulating immune cells into the brain by blocking adhesion molecules, that were successful in experimental stroke failed in clinical trials. Therefore, new immunoregulatory therapeutic strategies for acute ischemic stroke are desperately warranted. Herein, we highlight the role of circulating and cerebral immune cells in BBB disruption and the crosstalk between them following acute ischemic stroke. Using a robust theoretical background, we discuss potential and effective immunotherapeutic targets to regulate BBB permeability after acute ischemic stroke.",
+  "parent_papers": [
+    "DOI:10.1056/NEJMoa1809944"
+  ],
+  "authors": [
+    "Yan-mei Qiu",
+    "Chun-lin Zhang",
+    "An-qi Chen",
+    "Hai-ling Wang",
+    "Yi-fan Zhou",
+    "Ya\u2010nan Li",
+    "Bo Hu"
+  ]
+}

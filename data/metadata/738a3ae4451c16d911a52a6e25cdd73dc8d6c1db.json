@@ -1,0 +1,21 @@
+{
+  "paperId": "738a3ae4451c16d911a52a6e25cdd73dc8d6c1db",
+  "title": "The health effects of vitamin D supplementation: evidence from human studies",
+  "year": 2021,
+  "citationCount": 379,
+  "doi": "10.1038/s41574-021-00593-z",
+  "arxiv": null,
+  "pdf_url": "https://www.nature.com/articles/s41574-021-00593-z.pdf",
+  "abstract": "Vitamin D supplementation can prevent and cure nutritional rickets in infants and children. Preclinical and observational data suggest that the vitamin D endocrine system has a wide spectrum of skeletal and extra-skeletal activities. There is consensus that severe vitamin D deficiency (serum 25-hydroxyvitamin D (25OHD) concentration <30 nmol/l) should be corrected, whereas most guidelines recommend serum 25OHD concentrations of >50 nmol/l for optimal bone health in older adults. However, the causal link between vitamin D and many extra-skeletal outcomes remains unclear. The VITAL, ViDA and D2d randomized clinical trials (combined number of participants >30,000) indicated that vitamin D supplementation of vitamin D-replete adults (baseline serum 25OHD >50 nmol/l) does not prevent cancer, cardiovascular events, falls or progression to type 2 diabetes mellitus. Post hoc analysis has suggested some extra-skeletal benefits for individuals with vitamin D deficiency. Over 60 Mendelian randomization studies, designed to minimize bias from confounding, have evaluated the consequences of lifelong genetically lowered serum 25OHD concentrations on various outcomes and most studies have found null effects. Four Mendelian randomization studies found an increased risk of multiple sclerosis in individuals with genetically lowered serum 25OHD concentrations. In conclusion, supplementation of vitamin D-replete individuals does not provide demonstrable health benefits. This conclusion does not contradict older guidelines that severe vitamin D deficiency should be prevented or corrected. This Review highlights results from large randomized clinical trials performed during the period 2017\u20132020 and Mendelian randomization studies on vitamin D levels. Together, findings indicate that vitamin D supplementation alone in vitamin D-replete adults does not provide health benefits; however, vitamin D deficiency should always be corrected. Vitamin D and calcium supplementation can cure nutritional rickets and can modestly decrease the risk of major fractures in older adults with poor vitamin D status or calcium intake. Large supplementation trials recruiting vitamin D-replete adults...",
+  "parent_papers": [
+    "DOI:10.1056/NEJMoa1809944"
+  ],
+  "authors": [
+    "R. Bouillon",
+    "D. Manousaki",
+    "C. Rosen",
+    "K. Trajanoska",
+    "F. Rivadeneira",
+    "J. B. Richards"
+  ]
+}

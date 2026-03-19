@@ -1,0 +1,24 @@
+{
+  "paperId": "fc8c7182801c1672682f495aa19ef3174f9d9df3",
+  "title": "Epidemiology and Prevention of Prostate Cancer.",
+  "year": 2021,
+  "citationCount": 397,
+  "doi": "10.1016/j.euo.2021.09.006",
+  "arxiv": null,
+  "pdf_url": "",
+  "abstract": "CONTEXT Worldwide, prostate cancer (PCa) represents the second most common solid tumor in men. OBJECTIVE To assess the geographical distribution of PCa, epidemiological differences, and the most relevant risk factors for the disease. EVIDENCE ACQUISITION Estimated incidence, mortality, and prevalence of PCa for the year 2020 in 185 countries were derived from the IARC GLOBOCAN database. A review of English-language articles published between 2010 and 2020 was conducted using MEDLINE, EMBASE, and Scopus to identify risk factors for PCa. EVIDENCE SYNTHESIS In the year 2020, there were over 1414000 estimated new cases of PCa worldwide, with an age-standardized rate (ASR) incidence of 31 per 100000 (lifetime cumulative risk: 3.9%). Northern Europe has the highest all-age incidence ASR (83), while the lowest ASR was in South-Central Asia (6.3). In the year 2020, there were over 375000 estimated deaths worldwide, and the overall mortality ASR was 7.7 per 100000, with the highest ASR in the Caribbean (28) and the lowest in South-Central Asia (3.1). Family history, hereditary syndromes, and race are the strongest risk factors for PCa. Metabolic syndrome was associated with the risk of developing PCa, high-grade disease, and adverse pathology. Diabetes and exposure to ultraviolet rays were found to be inversely associated to PCa incidence. Cigarette smoking and obesity may increase PCa-specific mortality, while regular physical activity may reduce disease progression. Although 5-alpha reductase inhibitors are known to be associated with a reduced incidence of PCa, available studies failed to show an effect on overall mortality. CONCLUSIONS Family history, race, and hereditary syndromes are well-established risk factors for PCa. Modifiable risk factors may impact the risk of developing PCa and that of dying from the disease, but little evidence exist for any clear indication for prevention other than early diagnosis to reduce PCa mortality. PATIENT SUMMARY Prostate cancer (PCa) rates...",
+  "parent_papers": [
+    "DOI:10.1056/NEJMoa1809944"
+  ],
+  "authors": [
+    "G. Gandaglia",
+    "R. Leni",
+    "F. Bray",
+    "N. Fleshner",
+    "S. Freedland",
+    "A. Kibel",
+    "P. Stattin",
+    "H. Van Poppel",
+    "C. la Vecchia"
+  ]
+}

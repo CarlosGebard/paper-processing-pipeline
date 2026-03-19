@@ -1,0 +1,24 @@
+{
+  "paperId": "8cea597ef5191a6376a81635ce90fed49309e97f",
+  "title": "Association Among Dietary Supplement Use, Nutrient Intake, and Mortality Among U.S. Adults",
+  "year": 2019,
+  "citationCount": 203,
+  "doi": "10.7326/M18-2478",
+  "arxiv": null,
+  "pdf_url": "https://europepmc.org/articles/pmc6736694?pdf=render",
+  "abstract": "A recent study found that more than half of U.S. adults reported use of dietary supplements in the previous 30 days (1). Whether dietary supplement use is associated with health benefits or risks is controversial. The overall evidence suggests no benefits or harms, but a few randomized controlled trials have reported adverse outcomes associated with dietary supplement use, especially at high doses (2, 3). For example, the ATBC (Alpha-Tocopherol, Beta-Carotene Cancer Prevention) study and CARET (Beta-Carotene and Retinol Efficacy Trial) found that -carotene supplements (20 or 30 mg/d) increased risk for lung cancer among smokers (4, 5), and SELECT (Selenium and Vitamin E Cancer Prevention Trial) reported that supplemental use of vitamin E (400 IU/d) increased risk for prostate cancer among men (6). Although randomized controlled trials usually assess dietary supplement use at a specific dose, prospective cohort studies allow for evaluation of dose dependence versus threshold effects and potential heterogeneous effects of nutrient intake from supplements versus foods (7). For example, the CPS-II (Cancer Prevention Study II) Nutrition Cohort found that higher doses of supplemental calcium (1000 mg/d) were associated with increased risk for all-cause death in men, but lower doses (<1000 mg/d) or calcium intake from foods were not associated with mortality outcomes (8). Therefore, both the dose of the supplement and the nutrient source (foods vs. supplements) can play critical roles in determining the benefits or risks of nutrient intake. Using a nationally representative sample of U.S. adults, we evaluated the association between dietary supplement use and mortality from all causes, cardiovascular disease (CVD), and cancer. We further assessed whether adequate or excess nutrient intake was associated with mortality and whether the associations differed by nutrient intake from foods versus supplements. Methods Study Design and Population We used data from U.S. adults aged 20 years or older...",
+  "parent_papers": [
+    "DOI:10.1056/NEJMoa1809944"
+  ],
+  "authors": [
+    "Fan Chen",
+    "Mengxi Du",
+    "J. Blumberg",
+    "Kenneth Kwan Ho Chui",
+    "Mengyuan Ruan",
+    "G. Rogers",
+    "Zhilei Shan",
+    "Luxian Zeng",
+    "F. Zhang"
+  ]
+}

@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "heuristics-model"
+version = "0.1.0"
+description = "Deterministic heuristic post-processing for scientific paper section classification"
+readme = "README.md"
+requires-python = ">=3.11"
+authors = [{ name = "Heuristics Team" }]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.0",
+  "ruff>=0.6",
+  "mypy>=1.10",
+]
+
+[project.scripts]
+heuristics-model = "heuristics_model.cli:main"
+heuristics-diagnose = "heuristics_model.diagnostics:main"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]

@@ -1,0 +1,19 @@
+{
+  "paperId": "dbb483715774001abdcb5d00896bb1307e63b656",
+  "title": "Role of immune responses for development of NAFLD-associated liver cancer and prospects for therapeutic modulation.",
+  "year": 2023,
+  "citationCount": 104,
+  "doi": "10.1016/j.jhep.2023.02.033",
+  "arxiv": null,
+  "pdf_url": "http://www.journal-of-hepatology.eu/article/S0168827823001654/pdf",
+  "abstract": "The liver is the central metabolic organ of the body regulating energy and lipid metabolism and at the same time has potent immunological functions. Overwhelming the metabolic capacity of the liver by obesity and sedentary lifestyle leads to hepatic lipid accumulation, chronic necro-inflammation, enhanced mitochondrial/ER-stress and development of non-alcoholic fatty liver disease (NAFLD), with its pathologic form nonalcoholic steatohepatitis (NASH). Based on knowledge on pathophysiological mechanisms, specifically targeting metabolic diseases to prevent or slow down progression of NAFLD to liver cancer will become possible. Genetic/environmental factors contribute to development of NASH and liver cancer progression. The complex pathophysiology of NAFLD-NASH is reflected by environmental factors, particularly the gut microbiome and its metabolic products. NAFLD-associated HCC occurs in most of the cases in the context of a chronically inflamed liver and cirrhosis. Recognition of environmental alarmins or metabolites derived from the gut microbiota and the metabolically injured liver create a strong inflammatory milieu supported by innate and adaptive immunity. Several recent studies indicate that the chronic hepatic microenvironment of steatosis induces auto-aggressive CD8+CXCR6+PD1+ T cells secreting TNF and upregulating FasL to eliminate parenchymal and non-parenchymal cells in an antigen independent manner. This promotes chronic liver damage and a pro-tumorigenic environment. CD8+CXCR6+PD1+ T cells possess an exhausted, hyperactivated, resident phenotype and trigger NASH to HCC transition, and might be responsible for a less efficient treatment response to immune-check-point inhibitors - in particular atezolizumab/bevacizumab. Here, we provide an overview of NASH-related inflammation/pathogenesis focusing on new discoveries on the role of T cells in NASH-immunopathology and therapy response. This review discusses preventive measures to halt disease progression to liver cancer and therapeutic strategies to manage NASH-HCC patients.",
+  "parent_papers": [
+    "DOI:10.1056/NEJMoa1200303"
+  ],
+  "authors": [
+    "Neda Yahoo",
+    "M. Dudek",
+    "P. Knolle",
+    "Mathias F Heikenwälder"
+  ]
+}

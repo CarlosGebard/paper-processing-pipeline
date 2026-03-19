@@ -1,0 +1,28 @@
+{
+  "paperId": "0ca0cac72eb64ae8248c3ae48641c3cdc119d4cc",
+  "title": "The effects of the Green-Mediterranean diet on cardiometabolic health are linked to gut microbiome modifications: a randomized controlled trial",
+  "year": 2022,
+  "citationCount": 121,
+  "doi": "10.1186/s13073-022-01015-z",
+  "arxiv": null,
+  "pdf_url": "https://genomemedicine.biomedcentral.com/track/pdf/10.1186/s13073-022-01015-z",
+  "abstract": "Background Previous studies have linked the Mediterranean diet (MED) with improved cardiometabolic health, showing preliminary evidence for a mediating role of the gut microbiome. We recently suggested the Green-Mediterranean (Green-MED) diet as an improved version of the healthy MED diet, with increased consumption of plant-based foods and reduced meat intake. Here, we investigated the effects of MED interventions on the gut microbiota and cardiometabolic markers, and the interplay between the two, during the initial weight loss phase of the DIRECT-PLUS trial. Methods In the DIRECT-PLUS study, 294 participants with abdominal obesity/dyslipidemia were prospectively randomized to one of three intervention groups: healthy dietary guidelines (standard science-based nutritional counseling), MED, and Green-MED. Both isocaloric MED and Green-MED groups were supplemented with 28g/day walnuts. The Green-MED group was further provided with daily polyphenol-rich green tea and Mankai aquatic plant (new plant introduced to a western population). Gut microbiota was profiled by 16S rRNA for all stool samples and shotgun sequencing for a select subset of samples. Results Both MED diets induced substantial changes in the community structure of the gut microbiome, with the Green-MED diet leading to more prominent compositional changes, largely driven by the low abundant, “non-core,” microorganisms. The Green-MED diet was associated with specific microbial changes, including enrichments in the genus Prevotella and enzymatic functions involved in branched-chain amino acid degradation, and reductions in the genus Bifidobacterium and enzymatic functions responsible for branched-chain amino acid biosynthesis. The MED and Green-MED diets were also associated with stepwise beneficial changes in body weight and cardiometabolic biomarkers, concomitantly with the increased plant intake and reduced meat intake. Furthermore, while the level of adherence to the Green-MED diet and its specific green dietary components was associated with the magnitude of changes in microbiome composition, changes in gut microbial features appeared to mediate the association between...",
+  "parent_papers": [
+    "DOI:10.1056/NEJMoa1200303"
+  ],
+  "authors": [
+    "E. Rinott",
+    "A. Meir",
+    "G. Tsaban",
+    "H. Zelicha",
+    "Alon Kaplan",
+    "D. Knights",
+    "K. Tuohy",
+    "M. Scholz",
+    "O. Koren",
+    "M. Stampfer",
+    "Dong D. Wang",
+    "I. Shai",
+    "I. Youngster"
+  ]
+}

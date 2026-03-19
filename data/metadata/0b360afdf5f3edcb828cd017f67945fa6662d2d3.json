@@ -1,0 +1,36 @@
+{
+  "paperId": "0b360afdf5f3edcb828cd017f67945fa6662d2d3",
+  "title": "Dietary Fat, but Not Protein or Carbohydrate, Regulates Energy Intake and Causes Adiposity in Mice.",
+  "year": 2018,
+  "citationCount": 238,
+  "doi": "10.1016/j.cmet.2018.06.010",
+  "arxiv": null,
+  "pdf_url": "http://www.cell.com/article/S1550413118303929/pdf",
+  "abstract": "The impacts of different macronutrients on body weight regulation remain unresolved, with different studies suggesting increased dietary fat, increased carbohydrates (particularly sugars), or reduced protein may all stimulate overconsumption and drive obesity. We exposed C57BL/6 mice to 29 different diets varying from 8.3% to 80% fat, 10% to 80% carbohydrate, 5% to 30% protein, and 5% to 30% sucrose. Only increased dietary fat content was associated with elevated energy intake and adiposity. This response was associated with increased gene expression in the 5-HT receptors, and the dopamine and opioid signaling pathways in the hypothalamus. We replicated the core findings in four other mouse strains (DBA/2, BALB/c, FVB, and C3H). Mice regulate their food consumption primarily to meet an energy rather than a protein target, but this system can be over-ridden by hedonic factors linked to fat, but not sucrose, consumption.",
+  "parent_papers": [
+    "DOI:10.3945/ajcn.112.036350"
+  ],
+  "authors": [
+    "Sumei Hu",
+    "Lu Wang",
+    "Dengbao Yang",
+    "Li Li",
+    "J. Togo",
+    "Yingga Wu",
+    "Quansheng Liu",
+    "Baoguo Li",
+    "Min Li",
+    "Guanlin Wang",
+    "Xueying Zhang",
+    "Chaoqun Niu",
+    "Jianbo Li",
+    "Yanchao Xu",
+    "Elspeth Couper",
+    "Andrew Whittington-Davies",
+    "M. Mazidi",
+    "Lijuan Luo",
+    "Shengnan Wang",
+    "A. Douglas",
+    "J. Speakman"
+  ]
+}

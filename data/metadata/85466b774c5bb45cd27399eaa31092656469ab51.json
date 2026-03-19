@@ -1,0 +1,22 @@
+{
+  "paperId": "85466b774c5bb45cd27399eaa31092656469ab51",
+  "title": "Mediterranean Diet and the Association Between Air Pollution and Cardiovascular Disease Mortality Risk",
+  "year": 2019,
+  "citationCount": 132,
+  "doi": "10.1161/CIRCULATIONAHA.118.035742",
+  "arxiv": null,
+  "pdf_url": "https://www.ahajournals.org/doi/pdf/10.1161/CIRCULATIONAHA.118.035742",
+  "abstract": "Background: Recent experimental evidence suggests that nutritional supplementation can blunt adverse cardiopulmonary effects induced by acute air pollution exposure. However, whether usual individual dietary patterns can modify the association between long-term air pollution exposure and health outcomes has not been previously investigated. We assessed, in a large cohort with detailed diet information at the individual level, whether a Mediterranean diet modifies the association between long-term exposure to ambient air pollution and cardiovascular disease mortality risk. Methods: The National Institutes of Health–American Association for Retired Persons Diet and Health Study, a prospective cohort (N=548 845) across 6 states and 2 cities in the United States and with a follow-up period of 17 years (1995–2011), was linked to estimates of annual average exposures to fine particulate matter and nitrogen dioxide at the residential census-tract level. The alternative Mediterranean Diet Index, which uses a 9-point scale to assess conformity with a Mediterranean-style diet, was constructed for each participant from information in cohort baseline dietary questionnaires. We evaluated mortality risks for cardiovascular disease, ischemic heart disease, cerebrovascular disease, or cardiac arrest associated with long-term air pollution exposure. Effect modification of the associations between exposure and the mortality outcomes by alternative Mediterranean Diet Index was examined via interaction terms. Results: For fine particulate matter, we observed elevated and significant associations with cardiovascular disease (hazard ratio [HR] per 10 &mgr;g/m3, 1.13; 95% CI, 1.08–1.18), ischemic heart disease (HR, 1.16; 95% CI, 1.10–1.23), and cerebrovascular disease (HR, 1.15; 95% CI, 1.03–1.28). For nitrogen dioxide, we found significant associations with cardiovascular disease (HR per 10 ppb, 1.06; 95% CI, 1.04–1.08) and ischemic heart disease (HR, 1.08; 95% CI, 1.05–1.11). Analyses indicated that Mediterranean diet modified these relationships, as those with a higher alternative Mediterranean Diet Index score had significantly lower rates of cardiovascular disease mortality associated with long-term...",
+  "parent_papers": [
+    "DOI:10.1056/NEJMoa1200303"
+  ],
+  "authors": [
+    "Chris C. Lim",
+    "R. Hayes",
+    "Jiyoung Ahn",
+    "Y. Shao",
+    "D. Silverman",
+    "Rena R. Jones",
+    "G. Thurston"
+  ]
+}

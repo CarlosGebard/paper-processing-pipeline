@@ -1,0 +1,22 @@
+{
+  "paperId": "8d7c5a35f0a8e76c097a21847905f59a65073f58",
+  "title": "Food Timing, Circadian Rhythm and Chrononutrition: A Systematic Review of Time-Restricted Eating's Effects on Human Health.",
+  "year": 2020,
+  "citationCount": 149,
+  "doi": "10.3390/nu12123770",
+  "arxiv": null,
+  "pdf_url": "https://www.mdpi.com/2072-6643/12/12/3770/pdf?version=1607670850",
+  "abstract": "INTRODUCTION\nRecent observations have shown that lengthening the daily eating period may contribute to the onset of chronic diseases. Time-restricted eating (TRE) is a diet that especially limits this daily food window. It could represent a dietary approach that is likely to improve health markers. The aim of this study was to review how time-restricted eating affects human health.\n\n\nMETHOD\nFive general databases and six nutrition journals were screened to identify all studies published between January 2014 and September 2020 evaluating the effects of TRE on human populations.\n\n\nRESULTS\nAmong 494 articles collected, 23 were finally included for analysis. The overall adherence rate to TRE was 80%, with a 20% unintentional reduction in caloric intake. TRE induced an average weight loss of 3% and a loss of fat mass. This fat loss was also observed without any caloric restriction. Interestingly, TRE produced beneficial metabolic effects independently of weight loss, suggesting an intrinsic effect based on the realignment of feeding and the circadian clock.\n\n\nCONCLUSIONS\nTRE is a simple and well-tolerated diet that generates many beneficial health effects based on chrononutrition principles. More rigorous studies are needed, however, to confirm those effects, to understand their mechanisms and to assess their applicability to human health.",
+  "parent_papers": [
+    "DOI:10.3945/ajcn.112.036350"
+  ],
+  "authors": [
+    "Adafer Réda",
+    "Messaadi Wassil",
+    "Meddahi Mériem",
+    "Patey Alexia",
+    "Haderbache Abdelmalik",
+    "Bayen Sabine",
+    "Messaadi Nassir"
+  ]
+}
