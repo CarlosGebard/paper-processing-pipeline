@@ -20,15 +20,5 @@ scripts/heuristics_model/.ruff_cache/
 scripts/heuristics_model/src/heuristics_model.egg-info/
 scripts/heuristics_model/tests/__pycache__/
 
-# Runtime pipeline outputs
-data/raw_pdf/
-data/input_pdfs/
-data/docling_extraction/
-data/post_heuristics/
-data/claims/
-data/next_batch/
-data/pdfs/
-data/stages/01_raw_pdf/
-data/stages/02_input_pdfs/
-data/stages/03_docling_heuristics/
-data/stages/04_claims/
+# Pipeline data
+data/
