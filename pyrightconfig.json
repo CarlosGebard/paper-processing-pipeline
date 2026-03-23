@@ -1,0 +1,32 @@
+{
+  "include": [
+    "."
+  ],
+  "exclude": [
+    "**/node_modules",
+    "**/__pycache__",
+    ".git",
+    ".venv",
+    "venv",
+    "**/.venv/**",
+    "**/venv/**",
+    "**/data/**",
+    "**/dist/**",
+    "**/build/**"
+  ],
+  "ignore": [
+    "**/tests/**"
+  ],
+  "venvPath": ".",
+  "venv": ".venv",
+  "typeCheckingMode": "basic",
+  "reportMissingImports": "none",
+  "reportMissingTypeStubs": "none",
+  "reportUnknownVariableType": "none",
+  "reportUnknownMemberType": "none",
+  "reportUnknownArgumentType": "none",
+  "reportUnknownLambdaType": "none",
+  "reportUnknownParameterType": "none",
+  "reportOptionalMemberAccess": "none",
+  "reportOptionalCall": "none"
+}

@@ -3,7 +3,9 @@ from __future__ import annotations
 from pathlib import Path
 
 import config_loader
-import main
+from paper_pipeline import artifacts
+
+ctx = config_loader
 
 
 def test_resolve_project_path_uses_root_for_relative_paths() -> None:
@@ -53,21 +55,28 @@ def test_get_env_or_config_falls_back_to_config(monkeypatch) -> None:
     assert value == "config-key"
 
 
-def test_artifact_stage_status_detects_completed_pipeline(tmp_path, monkeypatch) -> None:
-    monkeypatch.setattr(main, "METADATA_DIR", tmp_path / "metadata")
-    monkeypatch.setattr(main, "DOCLING_INPUT_DIR", tmp_path / "input_pdfs")
-    monkeypatch.setattr(main, "DOCLING_JSON_DIR", tmp_path / "docling_json")
-    monkeypatch.setattr(main, "DOCLING_MD_DIR", tmp_path / "docling_md")
-    monkeypatch.setattr(main, "HEURISTICS_FULL_DIR", tmp_path / "heuristics_full")
-    monkeypatch.setattr(main, "HEURISTICS_FINAL_DIR", tmp_path / "heuristics_final")
-    monkeypatch.setattr(main, "CLAIMS_OUTPUT_DIR", tmp_path / "claims")
+def test_get_pipeline_paths_defaults_claims_output_to_stage_04() -> None:
+    paths = config_loader.get_pipeline_paths({})
 
-    paths = main.artifact_paths_for_base_name("DOC123__doi-10.1000-demo")
-    for path in paths.values():
+    assert paths["claims_output_dir"] == config_loader.DATA_DIR / "stages" / "04_claims"
+
+
+def test_artifact_stage_status_detects_completed_pipeline(tmp_path, monkeypatch) -> None:
+    monkeypatch.setattr(ctx, "METADATA_DIR", tmp_path / "metadata")
+    monkeypatch.setattr(ctx, "DOCLING_INPUT_DIR", tmp_path / "input_pdfs")
+    monkeypatch.setattr(ctx, "DOCLING_HEURISTICS_DIR", tmp_path / "docling_heuristics")
+    monkeypatch.setattr(ctx, "CLAIMS_OUTPUT_DIR", tmp_path / "claims")
+
+    paths = artifacts.artifact_paths_for_base_name("DOC123__doi-10.1000-demo")
+    for name, path in paths.items():
+        if name == "docling_heuristics_dir":
+            if not path.exists():
+                path.mkdir(parents=True, exist_ok=True)
+            continue
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text("x", encoding="utf-8")
 
-    status = main.artifact_stage_status(paths)
+    status = artifacts.artifact_stage_status(paths)
 
     assert status["docling"] is True
     assert status["heuristics"] is True

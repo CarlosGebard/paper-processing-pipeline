@@ -16,24 +16,22 @@ rate_limit:
   retries: 5
 
 storage:
-  papers_dir: "data/metadata"
-  discarded_dir: "data/discarded_papers"
-  registry_dir: "data/registry"
-  raw_pdf_dir: "data/raw_pdf"
+  papers_dir: "data/sources/metadata"
+  discarded_dir: "data/sources/discarded_papers"
+  registry_dir: "data/sources/registry"
+  raw_pdf_dir: "data/stages/01_raw_pdf"
 
 docling_ingestion:
-  input_dir: "data/input_pdfs"
-  output_dir: "data/docling_extraction/manual"
-  json_dir: "data/docling_extraction/json"
-  markdown_dir: "data/docling_extraction/markdown"
+  input_dir: "data/stages/02_input_pdfs"
+  output_dir: "data/stages/03_docling_heuristics"
 
 heuristics:
-  full_dir: "data/post_heuristics/full_doc"
-  final_dir: "data/post_heuristics/final"
+  full_dir: "data/stages/03_docling_heuristics"
+  final_dir: "data/stages/03_docling_heuristics"
 
 llm_to_claim:
-  input_dir: "data/post_heuristics/final"
-  output_dir: "data/claims"
+  input_dir: "data/stages/03_docling_heuristics"
+  output_dir: "data/stages/04_claims"
   model: "gpt-5-mini"
   max_claims: 10
   temperature: 0.0

@@ -3,8 +3,16 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from json_to_bib import generate_bib
-from normalize_raw_pdfs import _guess_base_name_from_stem, sync_raw_pdfs_into_input
+import paper_pipeline.tools.claims_extraction as claims_extraction
+from paper_pipeline.tools.bibliography import generate_bib
+from paper_pipeline.tools.claims_extraction import (
+    build_prompt,
+    derive_output_file,
+    parse_input_sections,
+    run_claim_extraction_flow,
+    run_claim_extraction_for_file,
+)
+from paper_pipeline.tools.pdf_normalization import _guess_base_name_from_stem, sync_raw_pdfs_into_input
 
 
 def test_generate_bib_creates_entry_from_metadata_wrapper(tmp_path: Path) -> None:
@@ -76,3 +84,198 @@ def test_guess_base_name_handles_truncated_author_year_filename() -> None:
     )
 
     assert guessed == "DOC999__doi-10.1000-demo"
+
+
+def test_parse_input_sections_reads_json_heuristics_output(tmp_path: Path) -> None:
+    input_file = tmp_path / "DOC123__doi-10.1000-demo.final.json"
+    payload = {
+        "paper": {"title": "Example paper"},
+        "sections": [
+            {"title": "Abstract", "text": "Abstract body.", "subsections": []},
+            {
+                "title": "Methods",
+                "text": "Methods body.",
+                "subsections": [{"title": "Design", "text": "Randomized trial.", "subsections": []}],
+            },
+            {"title": "Results", "text": "Results body.", "subsections": []},
+        ],
+    }
+    input_file.write_text(json.dumps(payload), encoding="utf-8")
+
+    sections = parse_input_sections(input_file)
+
+    assert sections["trace"] == ""
+    assert sections["available_sections"] == ["Abstract", "Methods", "Results"]
+    assert "## Abstract\nAbstract body." in sections["sections_text"]
+    assert "## Methods\nMethods body." in sections["sections_text"]
+    assert "Design\nRandomized trial." in sections["sections_text"]
+    assert "## Results\nResults body." in sections["sections_text"]
+
+
+def test_parse_input_sections_uses_top_level_final_sections(tmp_path: Path) -> None:
+    input_file = tmp_path / "DOC123__doi-10.1000-demo.final.json"
+    payload = {
+        "sections": [
+            {"title": "Abstract", "text": "Final abstract.", "subsections": []},
+            {"title": "Methods", "text": "Final methods.", "subsections": []},
+            {"title": "Results", "text": "Final results.", "subsections": []},
+        ],
+        "filtered": {
+            "sections": [
+                {"title": "Abstract", "text": "Filtered abstract.", "subsections": []},
+                {"title": "Methods", "text": "Filtered methods.", "subsections": []},
+                {"title": "Results", "text": "Filtered results.", "subsections": []},
+            ]
+        },
+    }
+    input_file.write_text(json.dumps(payload), encoding="utf-8")
+
+    sections = parse_input_sections(input_file)
+
+    assert sections["available_sections"] == ["Abstract", "Methods", "Results"]
+    assert "Final abstract." in sections["sections_text"]
+    assert "Final methods." in sections["sections_text"]
+    assert "Final results." in sections["sections_text"]
+    assert "Filtered abstract." not in sections["sections_text"]
+
+
+def test_derive_output_file_supports_json_inputs(tmp_path: Path) -> None:
+    input_file = tmp_path / "DOC123__doi-10.1000-demo.final.json"
+    output_dir = tmp_path / "claims"
+
+    derived = derive_output_file(input_file, output_dir)
+
+    assert derived == output_dir / "DOC123__doi-10.1000-demo.claims.json"
+
+
+def test_run_claim_extraction_flow_overwrites_existing_claims(tmp_path: Path, monkeypatch) -> None:
+    input_root = tmp_path / "03_docling_heuristics"
+    paper_dir = input_root / "DOC123__doi-10.1000-demo"
+    input_file = paper_dir / "DOC123__doi-10.1000-demo.final.json"
+    output_dir = tmp_path / "04_claims"
+    output_file = output_dir / "DOC123__doi-10.1000-demo.claims.json"
+
+    paper_dir.mkdir(parents=True, exist_ok=True)
+    output_dir.mkdir(parents=True, exist_ok=True)
+    input_file.write_text(json.dumps({"sections": []}), encoding="utf-8")
+    output_file.write_text("old", encoding="utf-8")
+
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+
+    class DummyOpenAI:
+        def __init__(self, api_key: str) -> None:
+            self.api_key = api_key
+
+    def fake_run_claim_extraction_for_file(
+        client: object,
+        input_path: Path,
+        output_path: Path,
+        model: str,
+        max_claims: int,
+        temperature: float,
+    ) -> int:
+        assert isinstance(client, DummyOpenAI)
+        assert input_path == input_file
+        assert output_path == output_file
+        output_path.write_text(json.dumps([{"claim_text": "new"}]), encoding="utf-8")
+        return 1
+
+    monkeypatch.setattr(claims_extraction, "OpenAI", DummyOpenAI)
+    monkeypatch.setattr(claims_extraction, "run_claim_extraction_for_file", fake_run_claim_extraction_for_file)
+
+    processed, overwritten, failed = run_claim_extraction_flow(
+        input_path=input_root,
+        output=output_dir,
+        model="gpt-5-mini",
+        max_claims=10,
+        temperature=0.0,
+    )
+
+    assert processed == 1
+    assert overwritten == 1
+    assert failed == 0
+    assert json.loads(output_file.read_text(encoding="utf-8")) == [{"claim_text": "new"}]
+
+
+def test_run_claim_extraction_for_file_inserts_all_sections_into_prompt(tmp_path: Path) -> None:
+    input_file = tmp_path / "DOC123__doi-10.1000-demo.final.json"
+    output_file = tmp_path / "DOC123__doi-10.1000-demo.claims.json"
+    input_file.write_text(
+        json.dumps(
+            {
+                "sections": [
+                    {"title": "Dietary Patterns", "text": "First section body.", "subsections": []},
+                    {"title": "2. Mediterranean Diet", "text": "Second section body.", "subsections": []},
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    captured: dict[str, object] = {}
+
+    class DummyResponses:
+        def create(self, *, model: str, input: list[dict[str, object]]) -> object:
+            captured["model"] = model
+            captured["input"] = input
+
+            class Response:
+                output_text = "[]"
+
+            return Response()
+
+    class DummyClient:
+        responses = DummyResponses()
+
+    processed = run_claim_extraction_for_file(
+        client=DummyClient(),
+        input_path=input_file,
+        output_path=output_file,
+        model="gpt-5-mini",
+        max_claims=10,
+        temperature=0.0,
+    )
+
+    assert processed == 0
+    prompt = captured["input"][0]["content"][0]["text"]  # type: ignore[index]
+    assert "AVAILABLE_SECTIONS = Dietary Patterns, 2. Mediterranean Diet" in prompt
+    assert "[SECTIONS]" in prompt
+    assert "## Dietary Patterns\nFirst section body." in prompt
+    assert "## 2. Mediterranean Diet\nSecond section body." in prompt
+    assert output_file.exists()
+    assert json.loads(output_file.read_text(encoding="utf-8")) == []
+
+
+def test_build_prompt_renders_full_prompt_from_final_json_sections(tmp_path: Path) -> None:
+    input_file = tmp_path / "DOC123__doi-10.1000-demo.final.json"
+    input_file.write_text(
+        json.dumps(
+            {
+                "trace": {"document_id": "DOC123", "doi": "10.1000/demo"},
+                "sections": [
+                    {"title": "Dietary Patterns", "text": "First section body.", "subsections": []},
+                    {
+                        "title": "2. Mediterranean Diet",
+                        "text": "Second section body.",
+                        "subsections": [{"title": "Evidence", "text": "Nested evidence.", "subsections": []}],
+                    },
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    sections = parse_input_sections(input_file)
+    prompt = build_prompt(
+        trace_text=sections["trace"],
+        sections_text=sections["sections_text"],
+        max_claims=10,
+        available_sections=", ".join(sections["available_sections"]),
+    )
+
+    assert "AVAILABLE_SECTIONS = Dietary Patterns, 2. Mediterranean Diet" in prompt
+    assert '[TRACE]\n{\n  "document_id": "DOC123",' in prompt
+    assert "[SECTIONS]" in prompt
+    assert "## Dietary Patterns\nFirst section body." in prompt
+    assert "## 2. Mediterranean Diet\nSecond section body." in prompt
+    assert "Evidence\nNested evidence." in prompt

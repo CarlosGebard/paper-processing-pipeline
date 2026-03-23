@@ -3,7 +3,7 @@ from __future__ import annotations
 import os
 from functools import lru_cache
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 import yaml
 
@@ -60,58 +60,40 @@ def get_pipeline_paths(config: dict[str, Any] | None = None) -> dict[str, Path]:
 
     storage_cfg = cfg.get("storage") or {}
     docling_cfg = cfg.get("docling_ingestion") or {}
-    heuristics_cfg = cfg.get("heuristics") or {}
     llm_claims_cfg = cfg.get("llm_to_claim") or {}
 
     metadata_dir = resolve_project_path(
         storage_cfg.get("papers_dir"),
-        DATA_DIR / "metadata",
+        DATA_DIR / "sources" / "metadata",
     )
     discarded_dir = resolve_project_path(
         storage_cfg.get("discarded_dir"),
-        DATA_DIR / "discarded_papers",
+        DATA_DIR / "sources" / "discarded_papers",
     )
     registry_dir = resolve_project_path(
         storage_cfg.get("registry_dir"),
-        DATA_DIR / "registry",
+        DATA_DIR / "sources" / "registry",
     )
     raw_pdf_dir = resolve_project_path(
         storage_cfg.get("raw_pdf_dir"),
-        DATA_DIR / "raw_pdf",
+        DATA_DIR / "stages" / "01_raw_pdf",
     )
 
     docling_input_dir = resolve_project_path(
         docling_cfg.get("input_dir"),
-        DATA_DIR / "input_pdfs",
+        DATA_DIR / "stages" / "02_input_pdfs",
     )
-    docling_output_dir = resolve_project_path(
+    docling_heuristics_dir = resolve_project_path(
         docling_cfg.get("output_dir"),
-        ROOT_DIR / "output",
-    )
-    docling_json_dir = resolve_project_path(
-        docling_cfg.get("json_dir"),
-        DATA_DIR / "docling_extraction" / "json",
-    )
-    docling_markdown_dir = resolve_project_path(
-        docling_cfg.get("markdown_dir"),
-        DATA_DIR / "docling_extraction" / "markdown",
-    )
-
-    heuristics_full_dir = resolve_project_path(
-        heuristics_cfg.get("full_dir"),
-        DATA_DIR / "post_heuristics" / "full_doc",
-    )
-    heuristics_final_dir = resolve_project_path(
-        heuristics_cfg.get("final_dir"),
-        DATA_DIR / "post_heuristics" / "final",
+        DATA_DIR / "stages" / "03_docling_heuristics",
     )
     claims_input_dir = resolve_project_path(
         llm_claims_cfg.get("input_dir"),
-        heuristics_final_dir,
+        docling_heuristics_dir,
     )
     claims_output_dir = resolve_project_path(
         llm_claims_cfg.get("output_dir"),
-        DATA_DIR / "claims",
+        DATA_DIR / "stages" / "04_claims",
     )
 
     return {
@@ -120,11 +102,7 @@ def get_pipeline_paths(config: dict[str, Any] | None = None) -> dict[str, Path]:
         "registry_dir": registry_dir,
         "raw_pdf_dir": raw_pdf_dir,
         "docling_input_dir": docling_input_dir,
-        "docling_output_dir": docling_output_dir,
-        "docling_json_dir": docling_json_dir,
-        "docling_markdown_dir": docling_markdown_dir,
-        "heuristics_full_dir": heuristics_full_dir,
-        "heuristics_final_dir": heuristics_final_dir,
+        "docling_heuristics_dir": docling_heuristics_dir,
         "claims_input_dir": claims_input_dir,
         "claims_output_dir": claims_output_dir,
     }
@@ -150,3 +128,66 @@ def get_env_or_config(
     if current in (None, ""):
         return default
     return str(current)
+
+
+CONFIG = get_config()
+PATHS = get_pipeline_paths(CONFIG)
+
+METADATA_DIR = PATHS["metadata_dir"]
+DOCLING_INPUT_DIR = PATHS["docling_input_dir"]
+DOCLING_HEURISTICS_DIR = PATHS["docling_heuristics_dir"]
+CLAIMS_INPUT_DIR = PATHS["claims_input_dir"]
+CLAIMS_OUTPUT_DIR = PATHS["claims_output_dir"]
+REGISTRY_DIR = PATHS["registry_dir"]
+RAW_PDF_DIR = PATHS["raw_pdf_dir"]
+
+LLM_CLAIMS_CFG = CONFIG.get("llm_to_claim") or {}
+LLM_CLAIMS_MODEL = str(LLM_CLAIMS_CFG.get("model", "gpt-5-mini"))
+LLM_CLAIMS_MAX = int(LLM_CLAIMS_CFG.get("max_claims", 10))
+LLM_CLAIMS_TEMPERATURE = float(LLM_CLAIMS_CFG.get("temperature", 0.0))
+
+REGISTRY_FILE = REGISTRY_DIR / "documents.jsonl"
+BIB_OUTPUT_FILE = METADATA_DIR / "papers.bib"
+
+
+def display_path(path: Path) -> str:
+    resolved = path.expanduser().resolve()
+    try:
+        return resolved.relative_to(ROOT_DIR).as_posix()
+    except ValueError:
+        return str(resolved)
+
+
+def ensure_dirs() -> None:
+    required_dirs = (
+        DATA_DIR,
+        METADATA_DIR,
+        DOCLING_INPUT_DIR,
+        DOCLING_HEURISTICS_DIR,
+        CLAIMS_OUTPUT_DIR,
+        REGISTRY_DIR,
+        RAW_PDF_DIR,
+    )
+    for directory in required_dirs:
+        directory.mkdir(parents=True, exist_ok=True)
+
+
+@lru_cache(maxsize=1)
+def resolve_docling_v2_pipeline_runner() -> Callable[..., dict[str, Any]]:
+    from paper_pipeline.docling_pipeline.converter import convert_pdf_for_pipeline
+
+    return convert_pdf_for_pipeline
+
+
+@lru_cache(maxsize=1)
+def resolve_raw_pdf_sync() -> Callable[[Path, Path, Path, Path | None], tuple[int, int]]:
+    from paper_pipeline.tools.pdf_normalization import sync_raw_pdfs_into_input
+
+    return sync_raw_pdfs_into_input
+
+
+@lru_cache(maxsize=1)
+def resolve_claims_flow() -> Callable[[Path, Path, str, int, float, str], tuple[int, int, int]]:
+    from paper_pipeline.tools.claims_extraction import run_claim_extraction_flow
+
+    return run_claim_extraction_flow
