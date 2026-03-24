@@ -37,13 +37,13 @@ def title_tokens(title: str) -> set[str]:
     return set(normalized.split()) if normalized else set()
 
 
-def extract_paper_id(logical_document: dict[str, Any]) -> str | None:
+def extract_source_base_name(logical_document: dict[str, Any]) -> str | None:
     source = logical_document.get("source", {})
     source_name = str(source.get("name", "")).strip()
     if not source_name:
         return None
 
-    return source_name.split("__", 1)[0] or None
+    return Path(source_name).stem or None
 
 
 def load_metadata_paper_title(

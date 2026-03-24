@@ -86,7 +86,6 @@ def run_end_to_end_flow(
         return
 
     chosen_model = model or ctx.LLM_CLAIMS_MODEL
-    chosen_max = max_claims if max_claims is not None else ctx.LLM_CLAIMS_MAX
     chosen_temp = temperature if temperature is not None else ctx.LLM_CLAIMS_TEMPERATURE
 
     docling_processed = 0
@@ -138,7 +137,7 @@ def run_end_to_end_flow(
                 final_json,
                 ctx.CLAIMS_OUTPUT_DIR,
                 chosen_model,
-                chosen_max,
+                max_claims,
                 chosen_temp,
                 "*/*.final.json",
             )

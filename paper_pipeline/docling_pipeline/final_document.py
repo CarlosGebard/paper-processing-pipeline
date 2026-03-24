@@ -4,10 +4,12 @@ import json
 from pathlib import Path
 from typing import Any
 
+from paper_pipeline.artifacts import metadata_path_for_base_name
+
 from .text_cleanup import clean_definition_like_text
 
 
-def extract_paper_id(source: dict[str, Any] | None) -> str | None:
+def extract_source_base_name(source: dict[str, Any] | None) -> str | None:
     if not isinstance(source, dict):
         return None
 
@@ -15,17 +17,15 @@ def extract_paper_id(source: dict[str, Any] | None) -> str | None:
     if not source_name:
         return None
 
-    return source_name.split("__", 1)[0] or None
+    return Path(source_name).stem or None
 
 
 def load_metadata(source: dict[str, Any] | None, metadata_dir: Path | None = None) -> dict[str, Any]:
-    paper_id = extract_paper_id(source)
-    if not paper_id or metadata_dir is None:
+    base_name = extract_source_base_name(source)
+    if not base_name or metadata_dir is None:
         return {}
 
-    direct_path = metadata_dir / f"{paper_id}.json"
-    candidate_paths = [direct_path, *sorted(metadata_dir.glob(f"{paper_id}*.json"))]
-    metadata_path = next((path for path in candidate_paths if path.exists()), None)
+    metadata_path = metadata_path_for_base_name(base_name, metadata_dir=metadata_dir)
     if metadata_path is None:
         return {}
 
@@ -73,6 +73,7 @@ def build_final_document(
             "title": metadata.get("title") or llm_filtered_document.get("paper_title"),
             "year": metadata.get("year"),
             "doi": metadata.get("doi"),
+            "citation_count": metadata.get("citationCount"),
             "authors": metadata.get("authors", []),
             "pdf_url": metadata.get("pdf_url"),
         },

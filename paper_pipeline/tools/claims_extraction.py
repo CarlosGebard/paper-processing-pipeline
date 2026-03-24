@@ -3,7 +3,6 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import re
 import sys
 from pathlib import Path
 from typing import Any
@@ -11,9 +10,10 @@ from typing import Any
 from openai import OpenAI
 
 from config_loader import get_config, get_pipeline_paths
+from paper_pipeline.artifacts import record_claims_run
 
 
-PROMPT_TEMPLATE = """You are a scientific information extraction system specialized in health literature.
+PROMPT_TEMPLATE = """You are a scientific information extraction system specialized in health, nutrition and healthy habits literature.
 
 Your task is to extract high-quality EMPIRICAL health-related claims from the provided sections.
 
@@ -45,12 +45,12 @@ A valid claim must:
 
 <what_to_extract>
 Extract only claims about:
+- dietary patterns, foods, nutrients, meal timing, or other nutrition-related exposures
+- lifestyle or healthy habit exposures, when they are explicitly health-related in the text
 - treatment or intervention effects
 - exposure-outcome associations
 - risk or risk reduction
 - prevention
-- diagnosis or prognosis
-- symptoms
 - biomarkers or physiological outcomes
 - disease-related or nutrition-related outcomes
 - adverse effects or no-effect findings, when explicitly reported
@@ -103,7 +103,7 @@ Never guess.
 - Prefer fewer strong claims over many weak claims.
 - Prefer claims with clearer outcome, population, and intervention context.
 - Avoid duplicates.
-- If multiple sentences support the same finding, output one normalized claim and keep the best exact evidence span from RESULTS.
+- If multiple sentences support the same finding, output one normalized claim and keep the best exact evidence span.
 </selection_rules>
 
 <claim_text_rules>
@@ -160,7 +160,7 @@ Return an array of objects following this schema exactly:
 Before outputting each claim, verify:
 1. Is it supported by at least one available section?
 2. Is it empirical rather than interpretive?
-3. Is it health-related?
+3. Is it nutrition / health-related?
 4. Is it atomic?
 5. Does claim_text avoid stronger wording than the evidence?
 6. Did I avoid adding any unstated information?
@@ -180,7 +180,14 @@ AVAILABLE_SECTIONS = {available_sections}
 """
 
 
-SECTION_NOT_FOUND = "_Section not found in source document._"
+BASE_CLAIMS = 10
+MAX_EXTRA_CLAIMS = 10
+MIN_CITATIONS = 100
+MAX_CITATIONS = 2000
+MIN_WORD_COUNT = 1500
+MAX_WORD_COUNT = 12000
+CITATION_WEIGHT = 0.35
+TEXT_WEIGHT = 0.65
 
 
 def load_llm_defaults() -> dict[str, Any]:
@@ -191,7 +198,6 @@ def load_llm_defaults() -> dict[str, Any]:
         "input_dir": paths["claims_input_dir"],
         "output_dir": paths["claims_output_dir"],
         "model": llm_cfg.get("model", "gpt-5-mini"),
-        "max_claims": int(llm_cfg.get("max_claims", 10)),
         "temperature": float(llm_cfg.get("temperature", 0.0)),
     }
 
@@ -206,7 +212,7 @@ def parse_args() -> argparse.Namespace:
         type=Path,
         default=defaults["input_dir"],
         help=(
-            "Input JSON/markdown file or directory "
+            "Input final JSON file or directory "
             f"(default desde config.yaml: {defaults['input_dir']})"
         ),
     )
@@ -223,8 +229,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--max-claims",
         type=int,
-        default=defaults["max_claims"],
-        help="Maximum number of claims",
+        default=None,
+        help=f"Fixed max claims override (default auto: base {BASE_CLAIMS} + extras)",
     )
     parser.add_argument(
         "--temperature",
@@ -240,13 +246,6 @@ def parse_args() -> argparse.Namespace:
     )
     return parser.parse_args()
 
-
-def read_text(path: Path) -> str:
-    if not path.exists() or not path.is_file():
-        raise FileNotFoundError(f"File not found: {path}")
-    return path.read_text(encoding="utf-8").strip()
-
-
 def read_json(path: Path) -> dict[str, Any]:
     if not path.exists() or not path.is_file():
         raise FileNotFoundError(f"File not found: {path}")
@@ -256,43 +255,46 @@ def read_json(path: Path) -> dict[str, Any]:
     return payload
 
 
-def parse_markdown_sections(md_text: str) -> dict[str, str]:
-    """
-    Parse top-level markdown sections like:
-    # Trace
-    # Abstract
-    # Methods
-    # Results
-    """
-    pattern = re.compile(r"^#\s+(.+?)\s*$", re.MULTILINE)
-    matches = list(pattern.finditer(md_text))
-
-    sections: dict[str, str] = {}
-
-    for i, match in enumerate(matches):
-        title = match.group(1).strip().lower()
-        start = match.end()
-        end = matches[i + 1].start() if i + 1 < len(matches) else len(md_text)
-        content = md_text[start:end].strip()
-        sections[title] = content
-
-    return sections
-
-
 def normalize_missing_section(text: str | None) -> str:
     if not text:
         return ""
-    cleaned = text.strip()
-    if cleaned == SECTION_NOT_FOUND:
-        return ""
-    return cleaned
+    return text.strip()
 
 
-def normalize_section_title(title: str | None) -> str:
-    if not title:
-        return ""
-    lowered = title.strip().lower()
-    return re.sub(r"\s+", " ", lowered)
+def clamp(value: float, minimum: float = 0.0, maximum: float = 1.0) -> float:
+    return max(minimum, min(maximum, value))
+
+
+def count_words(text: str) -> int:
+    return len(text.split()) if text.strip() else 0
+
+
+def normalize_linear(value: int, minimum: int, maximum: int) -> float:
+    if maximum <= minimum:
+        return 0.0
+    return clamp((value - minimum) / (maximum - minimum))
+
+
+def compute_dynamic_claim_limit(
+    citation_count: int | None,
+    word_count: int,
+    base_claims: int = BASE_CLAIMS,
+) -> dict[str, Any]:
+    normalized_citations = normalize_linear(citation_count or 0, MIN_CITATIONS, MAX_CITATIONS)
+    normalized_text = normalize_linear(word_count, MIN_WORD_COUNT, MAX_WORD_COUNT)
+    combined_score = (CITATION_WEIGHT * normalized_citations) + (TEXT_WEIGHT * normalized_text)
+    extra_claims = int(round(combined_score * MAX_EXTRA_CLAIMS))
+    return {
+        "base_claims": base_claims,
+        "extra_claims": extra_claims,
+        "final_claims": base_claims + extra_claims,
+        "citation_count": citation_count,
+        "word_count": word_count,
+        "normalized_citations": round(normalized_citations, 4),
+        "normalized_text": round(normalized_text, 4),
+        "combined_score": round(combined_score, 4),
+        "mode": "dynamic",
+    }
 
 
 def render_json_section(section: dict[str, Any]) -> str:
@@ -351,14 +353,14 @@ def parse_json_sections(payload: dict[str, Any]) -> dict[str, Any]:
         "trace": trace_text,
         "sections_text": sections_text,
         "available_sections": available_titles,
+        "paper": payload.get("paper") if isinstance(payload.get("paper"), dict) else {},
     }
 
 
 def parse_input_sections(input_path: Path) -> dict[str, Any]:
-    suffixes = input_path.suffixes
-    if suffixes and suffixes[-1].lower() == ".json":
-        return parse_json_sections(read_json(input_path))
-    return parse_markdown_sections(read_text(input_path))
+    if input_path.suffix.lower() != ".json":
+        raise ValueError(f"Claims extraction solo soporta archivos JSON final, no: {input_path.name}")
+    return parse_json_sections(read_json(input_path))
 
 
 def build_prompt(
@@ -465,12 +467,8 @@ def derive_output_file(input_path: Path, output: Path) -> Path:
     stem = input_path.name
     if stem.endswith(".final.json"):
         stem = stem[: -len(".final.json")]
-    elif stem.endswith(".final.md"):
-        stem = stem[: -len(".final.md")]
     elif stem.endswith(".json"):
         stem = stem[:-5]
-    elif stem.endswith(".md"):
-        stem = stem[:-3]
     return output_dir / f"{stem}.claims.json"
 
 
@@ -479,7 +477,7 @@ def run_claim_extraction_for_file(
     input_path: Path,
     output_path: Path,
     model: str,
-    max_claims: int,
+    max_claims: int | None,
     temperature: float,
 ) -> int:
     sections = parse_input_sections(input_path)
@@ -487,11 +485,30 @@ def run_claim_extraction_for_file(
     trace_text = normalize_missing_section(sections.get("trace"))
     sections_text = normalize_missing_section(sections.get("sections_text"))
     available_sections_list = [str(title) for title in sections.get("available_sections", []) if str(title).strip()]
+    paper = sections.get("paper") if isinstance(sections.get("paper"), dict) else {}
+    citation_count_raw = paper.get("citation_count")
+    citation_count = int(citation_count_raw) if isinstance(citation_count_raw, (int, float)) else None
+    word_count = count_words(sections_text)
+    claims_limit = (
+        {
+            "base_claims": BASE_CLAIMS,
+            "extra_claims": 0,
+            "final_claims": max_claims,
+            "citation_count": citation_count,
+            "word_count": word_count,
+            "normalized_citations": None,
+            "normalized_text": None,
+            "combined_score": None,
+            "mode": "fixed_override",
+        }
+        if max_claims is not None
+        else compute_dynamic_claim_limit(citation_count, word_count)
+    )
 
     prompt = build_prompt(
         trace_text=trace_text,
         sections_text=sections_text,
-        max_claims=max_claims,
+        max_claims=int(claims_limit["final_claims"]),
         available_sections=", ".join(available_sections_list) or "none",
     )
 
@@ -519,6 +536,20 @@ def run_claim_extraction_for_file(
     claims = validate_claims(parsed)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(json.dumps(claims, indent=2, ensure_ascii=False), encoding="utf-8")
+    doi = str(paper.get("doi") or "").strip()
+    document_id = str(paper.get("paper_id") or "").strip()
+    base_name = input_path.name[: -len(".final.json")] if input_path.name.endswith(".final.json") else input_path.stem
+    if doi:
+        record_claims_run(
+            document_id=document_id,
+            doi=doi,
+            base_name=base_name,
+            claims_run={
+                **claims_limit,
+                "extracted_claims": len(claims),
+                "output_path": str(output_path),
+            },
+        )
     print(f"Saved {len(claims)} claims to {output_path}")
     return len(claims)
 
@@ -535,7 +566,7 @@ def run_claim_extraction_flow(
     input_path: Path,
     output: Path,
     model: str,
-    max_claims: int,
+    max_claims: int | None,
     temperature: float,
     pattern: str = "*/*.final.json",
 ) -> tuple[int, int, int]:

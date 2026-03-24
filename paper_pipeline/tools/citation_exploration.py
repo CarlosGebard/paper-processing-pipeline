@@ -5,10 +5,12 @@ import queue
 import random
 import threading
 import time
+from pathlib import Path
 
 import requests
 
 from config_loader import get_config, get_env_or_config, get_pipeline_paths
+from paper_pipeline.artifacts import build_base_name
 
 
 config = get_config()
@@ -45,8 +47,25 @@ _last_request_ts = 0.0
 REQUEST_INTERVAL_SECONDS = 1.0
 
 
-existing_papers = {p.stem for p in papers_dir.glob("*.json")}
-discarded_papers = {p.stem for p in discarded_dir.glob("*.json")}
+def _collect_processed_ids(directory: Path) -> set[str]:
+    processed: set[str] = set()
+    for path in directory.glob("*.json"):
+        processed.add(path.stem)
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except Exception:
+            continue
+        paper_id = str(payload.get("paperId") or "").strip()
+        doi = str(payload.get("doi") or "").strip()
+        if paper_id:
+            processed.add(paper_id)
+        if doi:
+            processed.add(build_base_name(doi))
+    return processed
+
+
+existing_papers = _collect_processed_ids(papers_dir)
+discarded_papers = _collect_processed_ids(discarded_dir)
 processed_papers = existing_papers | discarded_papers
 
 
@@ -101,19 +120,19 @@ def truncate_abstract(text):
 
 def save_paper(paper):
     pid = paper["paperId"]
-    file_path = papers_dir / f"{pid}.json"
+    doi = paper.get("externalIds", {}).get("DOI")
+    file_stem = build_base_name(doi) if doi else pid
+    file_path = papers_dir / f"{file_stem}.metadata.json"
     parent = seed
 
     if file_path.exists():
-        with open(file_path) as f:
-            data = json.load(f)
+        data = json.loads(file_path.read_text(encoding="utf-8"))
         parents = set(data.get("parent_papers", []))
         if parent in parents:
             return
         parents.add(parent)
         data["parent_papers"] = sorted(parents)
-        with open(file_path, "w") as f:
-            json.dump(data, f, indent=2)
+        file_path.write_text(json.dumps(data, indent=2), encoding="utf-8")
         return
 
     out = {
@@ -128,21 +147,29 @@ def save_paper(paper):
         "parent_papers": [parent],
         "authors": [a["name"] for a in paper.get("authors", [])],
     }
-    with open(file_path, "w") as f:
-        json.dump(out, f, indent=2)
+    file_path.write_text(json.dumps(out, indent=2), encoding="utf-8")
+    processed_papers.add(pid)
+    if doi:
+        processed_papers.add(build_base_name(doi))
 
 
 def save_discarded(paper):
     pid = paper["paperId"]
+    doi = paper.get("externalIds", {}).get("DOI")
+    file_stem = build_base_name(doi) if doi else pid
     out = {
         "paperId": pid,
         "title": paper.get("title"),
         "year": paper.get("year"),
         "citationCount": paper.get("citationCount"),
+        "doi": doi,
+        "arxiv": paper.get("externalIds", {}).get("ArXiv"),
     }
-    with open(discarded_dir / f"{pid}.json", "w") as f:
+    with open(discarded_dir / f"{file_stem}.json", "w") as f:
         json.dump(out, f, indent=2)
     processed_papers.add(pid)
+    if doi:
+        processed_papers.add(build_base_name(doi))
 
 
 def crawler_worker(paper_queue):

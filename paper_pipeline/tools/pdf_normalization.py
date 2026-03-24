@@ -8,23 +8,7 @@ import shutil
 import unicodedata
 from pathlib import Path
 
-
-def normalize_doi(doi: str) -> str:
-    value = doi.strip()
-    value = re.sub(r"^https?://(dx\\.)?doi\\.org/", "", value, flags=re.IGNORECASE)
-    value = re.sub(r"^doi:\s*", "", value, flags=re.IGNORECASE)
-    return value.strip().lower()
-
-
-def slugify_doi(doi: str) -> str:
-    normalized = normalize_doi(doi)
-    slug = re.sub(r"[^a-z0-9._-]+", "-", normalized)
-    slug = re.sub(r"-+", "-", slug).strip("-")
-    return slug or "unknown-doi"
-
-
-def build_base_name(document_id: str, doi: str) -> str:
-    return f"{document_id}__doi-{slugify_doi(doi)}"
+from paper_pipeline.artifacts import build_base_name, normalize_doi, parse_base_name
 
 
 def _normalize_text_for_match(value: str) -> str:
@@ -60,7 +44,7 @@ def _iter_metadata_records(metadata_dir: Path) -> list[dict[str, str]]:
         document_id = section.get("document_id") or section.get("paperId")
         doi = section.get("doi")
         title = section.get("title")
-        if not document_id or not doi or not title:
+        if not doi or not title:
             continue
 
         title_key = _normalize_text_for_match(str(title))
@@ -70,10 +54,10 @@ def _iter_metadata_records(metadata_dir: Path) -> list[dict[str, str]]:
         record_doi = normalize_doi(str(doi))
         records.append(
             {
-                "document_id": str(document_id),
+                "document_id": str(document_id or ""),
                 "doi": record_doi,
                 "title_key": title_key,
-                "base_name": build_base_name(str(document_id), record_doi),
+                "base_name": build_base_name(record_doi),
             }
         )
 
@@ -240,18 +224,18 @@ def sync_raw_pdfs_into_input(
 
     for source_pdf in sorted(raw_pdf_dir.glob("*.pdf")):
         stem = source_pdf.stem
-        match = re.match(r"^(?P<docid>[^_]+)__doi-(?P<doi_slug>.+)$", stem)
+        parsed = parse_base_name(stem)
 
         target_name: str | None = None
-        if match:
-            target_name = source_pdf.name
+        if parsed:
+            target_name = source_pdf.name if parsed["format"] == "doi" else f"doi-{parsed['doi_slug']}.pdf"
         else:
             guessed_base_name = _guess_base_name_from_stem(stem, metadata_records, bib_records)
             if guessed_base_name:
                 target_name = f"{guessed_base_name}.pdf"
 
         if not target_name:
-            print(f"[RAW SKIP] {source_pdf.name}: no se pudo inferir document_id/doi (bib+metadata)")
+            print(f"[RAW SKIP] {source_pdf.name}: no se pudo inferir doi (bib+metadata)")
             skipped += 1
             continue
 

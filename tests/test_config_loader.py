@@ -67,7 +67,7 @@ def test_artifact_stage_status_detects_completed_pipeline(tmp_path, monkeypatch)
     monkeypatch.setattr(ctx, "DOCLING_HEURISTICS_DIR", tmp_path / "docling_heuristics")
     monkeypatch.setattr(ctx, "CLAIMS_OUTPUT_DIR", tmp_path / "claims")
 
-    paths = artifacts.artifact_paths_for_base_name("DOC123__doi-10.1000-demo")
+    paths = artifacts.artifact_paths_for_base_name("doi-10.1000-demo")
     for name, path in paths.items():
         if name == "docling_heuristics_dir":
             if not path.exists():

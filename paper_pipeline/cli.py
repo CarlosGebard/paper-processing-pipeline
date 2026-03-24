@@ -130,7 +130,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--max-claims",
         type=int,
         default=None,
-        help=f"Max claims (default config llm_to_claim.max_claims: {ctx.LLM_CLAIMS_MAX})",
+        help="Fixed max claims override (default auto: base 10 + extras)",
     )
     process_all_parser.add_argument(
         "--temperature",
@@ -150,7 +150,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--input",
         type=Path,
         default=None,
-        help="Archivo/directorio de entrada (default config llm_to_claim.input_dir)",
+        help="Archivo final JSON o directorio de entrada (default config llm_to_claim.input_dir)",
     )
     claims_parser.add_argument(
         "--output",
@@ -168,7 +168,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--max-claims",
         type=int,
         default=None,
-        help=f"Max claims (default config llm_to_claim.max_claims: {ctx.LLM_CLAIMS_MAX})",
+        help="Fixed max claims override (default auto: base 10 + extras)",
     )
     claims_parser.add_argument(
         "--temperature",
