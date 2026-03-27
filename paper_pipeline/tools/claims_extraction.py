@@ -5,7 +5,7 @@ import json
 import os
 import sys
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 from openai import OpenAI
 
@@ -13,84 +13,65 @@ from config_loader import get_config, get_pipeline_paths
 from paper_pipeline.artifacts import record_claims_run
 
 
-PROMPT_TEMPLATE = """You are a scientific information extraction system specialized in health, nutrition and healthy habits literature.
+PROMPT_TEMPLATE = """You are a information extraction system specialized in health, nutrition and healthy habits literature.
 
-Your task is to extract high-quality EMPIRICAL health-related claims from the provided sections.
+Task: extract up to MAX_CLAIMS atomic empirical health-related claims explicitly supported by the provided sections.
 
-You must act conservatively and stay strictly grounded in the provided text.
-
-<goal>
-Extract up to MAX_CLAIMS atomic empirical claims that are explicitly supported by the available sections.
-Available sections are listed in AVAILABLE_SECTIONS.
-</goal>
-
-<grounding_rules>
+<rules>
 - Use only the provided section text.
 - Do not use outside knowledge.
-- Do not invent missing metadata.
+- Do not invent or guess missing metadata.
 - Claims must be supported by at least one of the available sections.
-- You may combine information across available sections only when the connection is explicit in the provided text.
+- Combine information across sections only when the link is explicit in the text.
 - If support is insufficient, skip the claim.
-</grounding_rules>
+</rules>
 
-<what_counts_as_a_valid_claim>
-A valid claim must:
-- be health-related
-- be empirical rather than interpretive
-- be supported by the available sections
-- express one finding only
-- be understandable on its own
-- preserve scope and context without overgeneralizing
-</what_counts_as_a_valid_claim>
-
-<what_to_extract>
-Extract only claims about:
-- dietary patterns, foods, nutrients, meal timing, or other nutrition-related exposures
-- lifestyle or healthy habit exposures, when they are explicitly health-related in the text
-- treatment or intervention effects
+<include>
+Extract only empirical claims about:
+- dietary patterns, foods, nutrients, meal timing, or nutrition-related exposures
+- lifestyle or healthy-habit exposures when explicitly health-related
+- nutrition-, diet-, supplement-, or lifestyle-related interventions when the text reports an explicit health-related empirical finding
 - exposure-outcome associations
-- risk or risk reduction
-- prevention
-- biomarkers or physiological outcomes
-- disease-related or nutrition-related outcomes
-- adverse effects or no-effect findings, when explicitly reported
-</what_to_extract>
+- risk, risk reduction, or prevention
+- biomarkers, physiological outcomes, disease-related outcomes
+- adverse effects or explicit no-effect findings
+</include>
 
-<what_to_ignore>
+<claim_requirements>
+Each claim must:
+- be health-related
+- be empirical, not interpretive
+- express one finding only
+- be understandable on its own without requiring surrounding narrative context
+- preserve the scope of the evidence without overgeneralizing
+</claim_requirements>
+
+<exclude>
 Do not extract:
 - hypotheses
 - mechanistic speculation
 - background statements
 - author interpretations
 - editorial or administrative content
-- pure methodology statements with no empirical outcome
-- baseline characteristics unless they are themselves reported as a relevant empirical finding
-- vague trend language unless a concrete observed result is stated
-</what_to_ignore>
+- methodology without an empirical finding
+- baseline characteristics unless reported as a relevant finding 
+- vague trend without a concrete observed result 
+</exclude>
 
-<anti_overreach_rules>
+<anti_overreach>
 - Do not convert association into causation.
 - Do not convert subgroup findings into whole-population findings.
 - Do not convert non-significant trends into positive effects.
 - Do not strengthen wording beyond the evidence.
-- Do not merge multiple distinct outcomes into one claim.
-- Do not merge multiple distinct populations into one claim unless the text presents them as one inseparable result.
-</anti_overreach_rules>
+- Do not merge distinct outcomes into one claim.
+- Do not merge distinct populations into one claim unless the text presents them as one inseparable result.
+</anti_overreach>
 
-<context_rules>
-Use any available section only when it explicitly provides context such as:
-- population
-- condition
-- intervention or exposure
-- comparator
-- dose
-- duration
-- study design
-- sample size
-
-If a field is not explicitly stated in the provided text, set it to null.
-Never guess.
-</context_rules>
+<context>
+Use available sections to capture context only when explicit:
+population, condition, intervention_or_exposure, comparator, dose, duration, study_design, sample_size.
+If a field is not explicit, set it to null.
+</context>
 
 <numerical_fidelity_rules>
 - Preserve reported numbers exactly when available.
@@ -98,32 +79,43 @@ Never guess.
 - Do not recalculate, reinterpret, or embellish numbers.
 </numerical_fidelity_rules>
 
-<selection_rules>
+<selection>
 - Return no more than MAX_CLAIMS claims.
 - Prefer fewer strong claims over many weak claims.
 - Prefer claims with clearer outcome, population, and intervention context.
 - Avoid duplicates.
 - If multiple sentences support the same finding, output one normalized claim and keep the best exact evidence span.
-</selection_rules>
+</selection>
 
-<claim_text_rules>
-For each output claim:
+<claim_text>
+For each claim:
 - write claim_text in English
 - make it self-contained
 - keep it precise and restrained
-- include explicit scope needed to avoid overgeneralization
+- include scope needed to avoid overgeneralization
 - use wording that matches the evidential strength
-</claim_text_rules>
+</claim_text>
 
-<confidence_rules>
+<keywords>
+For each claim, extract 3 to 8 retrieval-oriented keywords grounded only in the provided text.
+Keywords should prioritize:
+- intervention_or_exposure
+- outcome
+- population or condition
+- explicit abbreviations or synonyms only if stated in the text
+Use short noun phrases, not sentences.
+Do not add background concepts not explicitly supported by the text.
+</keywords>
+
+<confidence>
 Assign confidence based only on how directly the claim is supported by the provided text.
 
 Use this scale:
-- 0.90 to 1.00 = explicitly stated in the provided sections with clear finding and context
-- 0.75 to 0.89 = clearly supported but missing one important contextual element
-- 0.60 to 0.74 = supported but less direct or less complete
-- below 0.60 = do not output the claim
-</confidence_rules>
+- 0.90 to 1.00 = explicit finding with clear context
+- 0.75 to 0.89 = clear support but one important context element missing 
+- 0.60 to 0.74 = supported but less direct or less complete 
+- below 0.60 = do not output
+</confidence>
 
 <output_format>
 Return JSON only.
@@ -145,6 +137,7 @@ Return an array of objects following this schema exactly:
     "duration": "string or null",
     "study_design": "string or null",
     "sample_size": "string or null",
+    "keywords": ["string"],
     "statistics": {
       "p_value": "string or null",
       "confidence_interval": "string or null",
@@ -188,6 +181,7 @@ MIN_WORD_COUNT = 1500
 MAX_WORD_COUNT = 12000
 CITATION_WEIGHT = 0.35
 TEXT_WEIGHT = 0.65
+AUTO_APPROVE_MAX_TOKENS = 7000
 
 
 def load_llm_defaults() -> dict[str, Any]:
@@ -243,6 +237,19 @@ def parse_args() -> argparse.Namespace:
         type=str,
         default="*/*.final.json",
         help="Glob pattern when --input is a directory",
+    )
+    parser.add_argument(
+        "--auto-approve-under-7000-tokens",
+        action="store_true",
+        help=(
+            "Procesa automaticamente solo archivos con estimated_input_tokens "
+            f"menor a {AUTO_APPROVE_MAX_TOKENS}"
+        ),
+    )
+    parser.add_argument(
+        "--skip-existing",
+        action="store_true",
+        help="Salta archivos cuyo *.claims.json de salida ya existe",
     )
     return parser.parse_args()
 
@@ -349,11 +356,18 @@ def parse_json_sections(payload: dict[str, Any]) -> dict[str, Any]:
     else:
         trace_text = ""
 
+    paper = payload.get("paper") if isinstance(payload.get("paper"), dict) else {}
+    paper_data = dict(paper) if isinstance(paper, dict) else {}
+    if not str(paper_data.get("title") or "").strip():
+        top_level_title = str(payload.get("paper_title") or payload.get("title") or "").strip()
+        if top_level_title:
+            paper_data["title"] = top_level_title
+
     return {
         "trace": trace_text,
         "sections_text": sections_text,
         "available_sections": available_titles,
-        "paper": payload.get("paper") if isinstance(payload.get("paper"), dict) else {},
+        "paper": paper_data,
     }
 
 
@@ -376,6 +390,13 @@ def build_prompt(
         .replace("{max_claims}", str(max_claims))
         .replace("{available_sections}", available_sections)
     )
+
+
+def estimate_text_tokens(text: str) -> int:
+    stripped = text.strip()
+    if not stripped:
+        return 0
+    return max(1, round(len(stripped) / 4))
 
 
 def extract_text_output(response: Any) -> str:
@@ -472,16 +493,11 @@ def derive_output_file(input_path: Path, output: Path) -> Path:
     return output_dir / f"{stem}.claims.json"
 
 
-def run_claim_extraction_for_file(
-    client: OpenAI,
+def build_claims_preview(
     input_path: Path,
-    output_path: Path,
-    model: str,
     max_claims: int | None,
-    temperature: float,
-) -> int:
+) -> dict[str, Any]:
     sections = parse_input_sections(input_path)
-
     trace_text = normalize_missing_section(sections.get("trace"))
     sections_text = normalize_missing_section(sections.get("sections_text"))
     available_sections_list = [str(title) for title in sections.get("available_sections", []) if str(title).strip()]
@@ -504,6 +520,39 @@ def run_claim_extraction_for_file(
         if max_claims is not None
         else compute_dynamic_claim_limit(citation_count, word_count)
     )
+    prompt = build_prompt(
+        trace_text=trace_text,
+        sections_text=sections_text,
+        max_claims=int(claims_limit["final_claims"]),
+        available_sections=", ".join(available_sections_list) or "none",
+    )
+    title = str(paper.get("title") or input_path.stem).strip() or input_path.stem
+    return {
+        "title": title,
+        "section_count": len(available_sections_list),
+        "available_sections": available_sections_list,
+        "estimated_input_tokens": estimate_text_tokens(prompt),
+        "claims_limit": claims_limit,
+        "paper": paper,
+        "word_count": word_count,
+    }
+
+
+def run_claim_extraction_for_file(
+    client: OpenAI,
+    input_path: Path,
+    output_path: Path,
+    model: str,
+    max_claims: int | None,
+    temperature: float,
+) -> int:
+    sections = parse_input_sections(input_path)
+    preview = build_claims_preview(input_path, max_claims)
+    trace_text = normalize_missing_section(sections.get("trace"))
+    sections_text = normalize_missing_section(sections.get("sections_text"))
+    available_sections_list = [str(title) for title in sections.get("available_sections", []) if str(title).strip()]
+    paper = sections.get("paper") if isinstance(sections.get("paper"), dict) else {}
+    claims_limit = preview["claims_limit"]
 
     prompt = build_prompt(
         trace_text=trace_text,
@@ -569,6 +618,9 @@ def run_claim_extraction_flow(
     max_claims: int | None,
     temperature: float,
     pattern: str = "*/*.final.json",
+    review_callback: Callable[[Path, dict[str, Any], Path], bool] | None = None,
+    auto_approve_max_tokens: int | None = None,
+    skip_existing: bool = False,
 ) -> tuple[int, int, int]:
     api_key = os.getenv("OPENAI_API_KEY")
     if not api_key:
@@ -585,10 +637,62 @@ def run_claim_extraction_flow(
     processed = 0
     overwritten = 0
     failed = 0
+    deferred_files: list[Path] = []
 
     for file_path in files:
         output_path = derive_output_file(file_path, resolved_output)
         try:
+            if skip_existing and output_path.exists():
+                print(f"[SKIP EXISTING] {file_path.name}: ya existe {output_path}")
+                continue
+            preview = build_claims_preview(file_path, max_claims)
+            estimated_tokens = int(preview.get("estimated_input_tokens") or 0)
+            if auto_approve_max_tokens is not None:
+                if estimated_tokens < auto_approve_max_tokens:
+                    print(
+                        f"[AUTO-APPROVE] {file_path.name}: "
+                        f"{estimated_tokens} tokens < {auto_approve_max_tokens}"
+                    )
+                else:
+                    print(
+                        f"[SKIP AUTO] {file_path.name}: "
+                        f"{estimated_tokens} tokens >= {auto_approve_max_tokens}"
+                    )
+                    continue
+            if review_callback is not None:
+                preview["review_phase"] = "initial"
+                preview["output_exists"] = output_path.exists()
+                decision = review_callback(file_path, preview, output_path)
+                if not decision:
+                    deferred_files.append(file_path)
+                    print(f"[STANDBY] {file_path.name}: movido al final de la cola")
+                    continue
+            if output_path.exists():
+                overwritten += 1
+                print(f"[OVERWRITE] {file_path.name}: regenerando claims en {output_path}")
+            run_claim_extraction_for_file(
+                client=client,
+                input_path=file_path,
+                output_path=output_path,
+                model=model,
+                max_claims=max_claims,
+                temperature=temperature,
+            )
+            processed += 1
+        except Exception as exc:
+            print(f"[SKIP] {file_path.name}: {exc}", file=sys.stderr)
+            failed += 1
+
+    for file_path in deferred_files:
+        output_path = derive_output_file(file_path, resolved_output)
+        try:
+            if review_callback is not None:
+                preview = build_claims_preview(file_path, max_claims)
+                preview["review_phase"] = "final"
+                preview["output_exists"] = output_path.exists()
+                if not review_callback(file_path, preview, output_path):
+                    print(f"[SKIP] {file_path.name}: rechazado por usuario en revision final")
+                    continue
             if output_path.exists():
                 overwritten += 1
                 print(f"[OVERWRITE] {file_path.name}: regenerando claims en {output_path}")
@@ -618,6 +722,10 @@ def main() -> int:
             max_claims=args.max_claims,
             temperature=args.temperature,
             pattern=args.pattern,
+            auto_approve_max_tokens=(
+                AUTO_APPROVE_MAX_TOKENS if args.auto_approve_under_7000_tokens else None
+            ),
+            skip_existing=args.skip_existing,
         )
     except Exception as exc:
         print(f"ERROR: {exc}", file=sys.stderr)

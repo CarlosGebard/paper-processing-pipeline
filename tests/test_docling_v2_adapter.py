@@ -4,6 +4,9 @@ import json
 from pathlib import Path
 
 import config_loader as ctx
+import paper_pipeline.docling_pipeline.filtered_document as filtered_document
+import paper_pipeline.docling_pipeline.final_document as final_document
+from paper_pipeline.docling_pipeline.filtered_document import build_filtered_document
 from paper_pipeline.docling_pipeline.final_document import build_final_document
 from paper_pipeline.docling_pipeline.converter import (
     convert_pdf_for_pipeline,
@@ -129,3 +132,170 @@ def test_build_final_document_includes_citation_count_from_metadata(tmp_path) ->
     )
 
     assert result["paper"]["citation_count"] == 420
+
+
+def test_build_final_document_falls_back_to_relations_title_when_metadata_missing(tmp_path, monkeypatch) -> None:
+    metadata_dir = tmp_path / "metadata"
+    metadata_dir.mkdir()
+
+    monkeypatch.setattr(final_document, "find_default_relations_csv", lambda: tmp_path / "doi_pdf_relations.csv")
+    monkeypatch.setattr(
+        final_document,
+        "load_relations_title_map",
+        lambda _path: {"10.1000-demo": "Recovered PDF Title"},
+    )
+
+    result = build_final_document(
+        {
+            "source": {"name": "doi-10.1000-demo"},
+            "paper_title": "None",
+            "sections": [{"title": "Methods", "text": "Body content with enough words to survive pruning safely.", "subsections": []}],
+        },
+        metadata_dir=metadata_dir,
+    )
+
+    assert result["paper"]["title"] == "Recovered PDF Title"
+
+
+def test_build_filtered_document_falls_back_to_relations_title_when_metadata_missing(tmp_path, monkeypatch) -> None:
+    metadata_dir = tmp_path / "metadata"
+    metadata_dir.mkdir()
+
+    monkeypatch.setattr(filtered_document, "find_default_relations_csv", lambda: tmp_path / "doi_pdf_relations.csv")
+    monkeypatch.setattr(
+        filtered_document,
+        "load_relations_title_map",
+        lambda _path: {"10.1000-demo": "Recovered PDF Title"},
+    )
+
+    result = build_filtered_document(
+        {
+            "source": {"name": "doi-10.1000-demo"},
+            "sections": [{"title": "Methods", "level": 1, "text": "This section has enough words to remain after filtered pruning safely.", "subsections": []}],
+        },
+        metadata_dir=metadata_dir,
+    )
+
+    assert result["paper_title"] == "Recovered PDF Title"
+
+
+def test_build_final_document_prunes_empty_and_short_leaf_sections(tmp_path) -> None:
+    metadata_dir = tmp_path / "metadata"
+    metadata_dir.mkdir()
+    source_name = "doi-10.1000-demo"
+    (metadata_dir / f"{source_name}.metadata.json").write_text(
+        json.dumps({"metadata": {"title": "Example paper"}}),
+        encoding="utf-8",
+    )
+
+    result = build_final_document(
+        {
+            "source": {"name": source_name},
+            "paper_title": "Fallback title",
+            "sections": [
+                {"title": "Methods", "text": "This section has enough words to remain in the final output safely.", "subsections": []},
+                {"title": "Empty", "text": "   ", "subsections": []},
+                {"title": "Short", "text": "too short to keep here", "subsections": []},
+            ],
+        },
+        metadata_dir=metadata_dir,
+    )
+
+    assert [section["title"] for section in result["sections"]] == ["Methods"]
+
+
+def test_build_final_document_keeps_short_parent_when_subsections_have_content(tmp_path) -> None:
+    metadata_dir = tmp_path / "metadata"
+    metadata_dir.mkdir()
+    source_name = "doi-10.1000-demo"
+    (metadata_dir / f"{source_name}.metadata.json").write_text(
+        json.dumps({"metadata": {"title": "Example paper"}}),
+        encoding="utf-8",
+    )
+
+    result = build_final_document(
+        {
+            "source": {"name": source_name},
+            "paper_title": "Fallback title",
+            "sections": [
+                {
+                    "title": "Results",
+                    "text": "brief intro",
+                    "subsections": [
+                        {
+                            "title": "Outcome A",
+                            "text": "This subsection contains enough detail and words to remain available downstream.",
+                            "subsections": [],
+                        },
+                        {"title": "Outcome B", "text": "short text", "subsections": []},
+                    ],
+                }
+            ],
+        },
+        metadata_dir=metadata_dir,
+    )
+
+    assert len(result["sections"]) == 1
+    assert result["sections"][0]["title"] == "Results"
+    assert [section["title"] for section in result["sections"][0]["subsections"]] == ["Outcome A"]
+
+
+def test_build_filtered_document_prunes_empty_and_short_leaf_sections(tmp_path) -> None:
+    metadata_dir = tmp_path / "metadata"
+    metadata_dir.mkdir()
+    source_name = "doi-10.1000-demo"
+    (metadata_dir / f"{source_name}.metadata.json").write_text(
+        json.dumps({"metadata": {"title": "Example paper"}}),
+        encoding="utf-8",
+    )
+
+    result = build_filtered_document(
+        {
+            "source": {"name": source_name},
+            "sections": [
+                {"title": "Methods", "level": 1, "text": "This section has enough words to remain after filtered pruning safely.", "subsections": []},
+                {"title": "Results", "level": 1, "text": "short text", "subsections": []},
+                {"title": "Design", "level": 2, "text": "   ", "subsections": []},
+            ],
+        },
+        metadata_dir=metadata_dir,
+    )
+
+    assert [section["title"] for section in result["sections"]] == ["Methods"]
+
+
+def test_build_filtered_document_keeps_short_parent_when_subsections_have_content(tmp_path) -> None:
+    metadata_dir = tmp_path / "metadata"
+    metadata_dir.mkdir()
+    source_name = "doi-10.1000-demo"
+    (metadata_dir / f"{source_name}.metadata.json").write_text(
+        json.dumps({"metadata": {"title": "Example paper"}}),
+        encoding="utf-8",
+    )
+
+    result = build_filtered_document(
+        {
+            "source": {"name": source_name},
+            "sections": [
+                {
+                    "title": "Methods",
+                    "level": 1,
+                    "text": "brief intro",
+                    "subsections": [
+                        {
+                            "title": "Protocol",
+                            "level": 2,
+                            "text": "This subsection contains enough detailed content to remain after filtering safely.",
+                            "subsections": [],
+                        },
+                        {"title": "Notes", "level": 2, "text": "tiny text", "subsections": []},
+                    ],
+                }
+            ],
+        },
+        metadata_dir=metadata_dir,
+    )
+
+    assert len(result["sections"]) == 1
+    assert result["sections"][0]["title"] == "Methods"
+    assert [section["title"] for section in result["sections"][0]["subsections"]] == ["Protocol"]

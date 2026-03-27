@@ -6,11 +6,13 @@ import random
 import threading
 import time
 from pathlib import Path
+from typing import Any
 
 import requests
 
 from config_loader import get_config, get_env_or_config, get_pipeline_paths
 from paper_pipeline.artifacts import build_base_name
+from paper_pipeline.tools.paper_selector import PaperCandidate, classify_papers_with_openai
 
 
 config = get_config()
@@ -31,6 +33,16 @@ min_citations = config["exploration"]["min_citations"]
 buffer_size = config["exploration"]["buffer_size"]
 max_words = config["exploration"]["max_abstract_words"]
 min_year = config["exploration"].get("min_year", 2000)
+metadata_selection_cfg = config.get("metadata_selection") or {}
+selection_model = get_env_or_config(
+    "OPENAI_METADATA_SELECTION_MODEL",
+    "metadata_selection",
+    "model",
+    default="gpt-5-mini",
+    config=config,
+)
+selection_preview_words = max(1, int(metadata_selection_cfg.get("abstract_preview_words", 20)))
+selection_batch_size = max(1, int(metadata_selection_cfg.get("batch_size", 20)))
 
 papers_dir = paths["metadata_dir"]
 discarded_dir = paths["discarded_dir"]
@@ -118,6 +130,46 @@ def truncate_abstract(text):
     return " ".join(words[:max_words]) + "..."
 
 
+def build_selection_preview(text: str | None, max_words: int = selection_preview_words) -> str:
+    if not text:
+        return ""
+    words = text.split()
+    if len(words) <= max_words:
+        return " ".join(words)
+    return " ".join(words[:max_words]) + "..."
+
+
+def paper_to_metadata_record(
+    paper: dict[str, Any],
+    *,
+    parent: str,
+    abstract_word_limit: int = max_words,
+) -> dict[str, Any]:
+    abstract_text = str(paper.get("abstract") or "").strip()
+    if abstract_text:
+        words = abstract_text.split()
+        if len(words) > abstract_word_limit:
+            abstract_text = " ".join(words[:abstract_word_limit]) + "..."
+    else:
+        abstract_text = None
+
+    external_ids = paper.get("externalIds") or {}
+    open_access_pdf = paper.get("openAccessPdf") or {}
+
+    return {
+        "paperId": paper["paperId"],
+        "title": paper.get("title"),
+        "year": paper.get("year"),
+        "citationCount": paper.get("citationCount"),
+        "doi": external_ids.get("DOI"),
+        "arxiv": external_ids.get("ArXiv"),
+        "pdf_url": open_access_pdf.get("url"),
+        "abstract": abstract_text,
+        "parent_papers": [parent],
+        "authors": [a["name"] for a in paper.get("authors", []) if isinstance(a, dict) and a.get("name")],
+    }
+
+
 def save_paper(paper):
     pid = paper["paperId"]
     doi = paper.get("externalIds", {}).get("DOI")
@@ -135,25 +187,14 @@ def save_paper(paper):
         file_path.write_text(json.dumps(data, indent=2), encoding="utf-8")
         return
 
-    out = {
-        "paperId": pid,
-        "title": paper.get("title"),
-        "year": paper.get("year"),
-        "citationCount": paper.get("citationCount"),
-        "doi": paper.get("externalIds", {}).get("DOI"),
-        "arxiv": paper.get("externalIds", {}).get("ArXiv"),
-        "pdf_url": (paper.get("openAccessPdf") or {}).get("url"),
-        "abstract": paper.get("abstract"),
-        "parent_papers": [parent],
-        "authors": [a["name"] for a in paper.get("authors", [])],
-    }
+    out = paper_to_metadata_record(paper, parent=parent)
     file_path.write_text(json.dumps(out, indent=2), encoding="utf-8")
     processed_papers.add(pid)
     if doi:
         processed_papers.add(build_base_name(doi))
 
 
-def save_discarded(paper):
+def save_discarded(paper, *, selection: dict[str, str] | None = None):
     pid = paper["paperId"]
     doi = paper.get("externalIds", {}).get("DOI")
     file_stem = build_base_name(doi) if doi else pid
@@ -165,8 +206,9 @@ def save_discarded(paper):
         "doi": doi,
         "arxiv": paper.get("externalIds", {}).get("ArXiv"),
     }
-    with open(discarded_dir / f"{file_stem}.json", "w") as f:
-        json.dump(out, f, indent=2)
+    if selection:
+        out["selection"] = selection
+    (discarded_dir / f"{file_stem}.json").write_text(json.dumps(out, indent=2), encoding="utf-8")
     processed_papers.add(pid)
     if doi:
         processed_papers.add(build_base_name(doi))
@@ -227,13 +269,119 @@ def explore():
 
         decision = input("keep? (y/n/q): ").lower().strip()
         if decision == "y":
-            p["abstract"] = abstract
             save_paper(p)
             accepted += 1
         elif decision == "n":
             save_discarded(p)
         elif decision == "q":
             break
+
+
+def _build_paper_candidate(index: int, paper: dict[str, Any]) -> PaperCandidate:
+    return PaperCandidate(
+        id=f"cand_{index:03d}",
+        title=str(paper.get("title") or "").strip() or "Untitled paper",
+        abstract_preview=build_selection_preview(paper.get("abstract"), max_words=selection_preview_words),
+    )
+
+
+def _process_selection_batch(
+    batch: list[dict[str, Any]],
+    accepted: int,
+    accepted_limit: int,
+) -> tuple[int, bool, int, int, int]:
+    if not batch:
+        return accepted, False, 0, 0, 0
+
+    candidates = [_build_paper_candidate(index + 1, paper) for index, paper in enumerate(batch)]
+    decisions, _raw_response = classify_papers_with_openai(
+        candidates=candidates,
+        model=selection_model,
+    )
+    decisions_by_id = {item["id"]: item for item in decisions}
+    processed_count = 0
+    kept_count = 0
+    dropped_count = 0
+
+    for candidate, paper in zip(candidates, batch):
+        decision = decisions_by_id.get(
+            candidate.id,
+            {"decision": "uncertain", "reason": "missing_decision"},
+        )
+        processed_count += 1
+        preview = candidate.abstract_preview or "No abstract preview available."
+        title = candidate.title
+        reason = decision["reason"]
+
+        if decision["decision"] == "drop":
+            print(f"[DROP] {title}")
+            print(f"  preview: {preview}")
+            print(f"  reason: {reason}")
+            save_discarded(
+                paper,
+                selection={
+                    "mode": "nutrition-rag",
+                    "decision": decision["decision"],
+                    "reason": reason,
+                    "preview": preview,
+                },
+            )
+            dropped_count += 1
+            continue
+
+        if accepted >= accepted_limit:
+            return accepted, True, processed_count - 1, kept_count, dropped_count
+
+        print(f"[KEEP] {title}")
+        print(f"  preview: {preview}")
+        print(f"  reason: {reason}")
+        save_paper(paper)
+        accepted += 1
+        kept_count += 1
+
+    return accepted, accepted >= accepted_limit, processed_count, kept_count, dropped_count
+
+
+def explore_with_nutrition_rag() -> None:
+    paper_queue = queue.Queue(maxsize=buffer_size)
+    crawler = threading.Thread(target=crawler_worker, args=(paper_queue,), daemon=True)
+    crawler.start()
+
+    accepted = 0
+    reviewed = 0
+    dropped = 0
+    batch: list[dict[str, Any]] = []
+    exhausted = False
+
+    while accepted < limit:
+        paper = paper_queue.get()
+        if paper is None:
+            exhausted = True
+            break
+        batch.append(paper)
+        if len(batch) < selection_batch_size:
+            continue
+
+        accepted, reached_limit, processed_count, _kept_count, dropped_count = _process_selection_batch(batch, accepted, limit)
+        reviewed += processed_count
+        dropped += dropped_count
+        batch = []
+        if reached_limit:
+            break
+
+    if batch and accepted < limit:
+        accepted, _reached_limit, processed_count, _kept_count, dropped_count = _process_selection_batch(batch, accepted, limit)
+        reviewed += processed_count
+        dropped += dropped_count
+
+    print("\nResumen metadata nutrition-rag")
+    print(f"- Modelo OpenAI:          {selection_model}")
+    print(f"- Preview abstract words: {selection_preview_words}")
+    print(f"- Batch size:             {selection_batch_size}")
+    print(f"- Reviewed:               {reviewed}")
+    print(f"- Kept:                   {accepted}")
+    print(f"- Dropped:                {dropped}")
+    print(f"- Source exhausted:       {'yes' if exhausted else 'no'}")
 
 
 def run_interactive_exploration() -> None:
@@ -252,6 +400,26 @@ def run_interactive_exploration() -> None:
     print()
 
     explore()
+
+
+def run_nutrition_rag_exploration() -> None:
+    try:
+        seed_meta = fetch_seed_metadata()
+    except Exception as exc:
+        raise SystemExit(f"Seed inválido o no encontrado: {seed}. Error: {exc}")
+
+    print("\nSeed:", seed)
+    print("Seed detected:", seed_meta.get("title", "Unknown title"))
+    print("Seed citations:", seed_meta.get("citationCount", 0))
+    print("Minimum citations:", min_citations)
+    print("Minimum year:", min_year)
+    print("Selection mode:", "nutrition-rag")
+    print("Preview abstract words:", selection_preview_words)
+    print("Selection batch size:", selection_batch_size)
+    print("Semantic Scholar rate limit:", "1 request/second")
+    print()
+
+    explore_with_nutrition_rag()
 
 
 if __name__ == "__main__":

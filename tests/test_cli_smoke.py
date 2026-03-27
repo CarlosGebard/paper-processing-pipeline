@@ -28,9 +28,13 @@ def test_metadata_help_smoke() -> None:
     result = run_cli("metadata", "--help")
     assert result.returncode == 0
     assert "usage:" in result.stdout
+    assert "--mode" in result.stdout
+    assert "nutrition-rag" in result.stdout
 
 
 def test_claims_help_smoke() -> None:
     result = run_cli("claims", "--help")
     assert result.returncode == 0
     assert "--max-claims" in result.stdout
+    assert "--auto-approve-under-7000-tokens" in result.stdout
+    assert "--skip-existing" in result.stdout

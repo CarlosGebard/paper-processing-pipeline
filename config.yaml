@@ -7,6 +7,11 @@ exploration:
   buffer_size: 50
   max_abstract_words: 300
 
+metadata_selection:
+  model: "gpt-5-mini"
+  abstract_preview_words: 20
+  batch_size: 20
+
 api:
   semantic_scholar_url: "https://api.semanticscholar.org/graph/v1"
 
@@ -33,5 +38,5 @@ llm_to_claim:
   input_dir: "data/stages/03_docling_heuristics"
   output_dir: "data/stages/04_claims"
   model: "gpt-5-mini"
-  max_claims: 10
+  max_claims: 20
   temperature: 0.0

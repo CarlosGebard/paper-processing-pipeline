@@ -187,7 +187,7 @@ def resolve_raw_pdf_sync() -> Callable[[Path, Path, Path, Path | None], tuple[in
 
 
 @lru_cache(maxsize=1)
-def resolve_claims_flow() -> Callable[[Path, Path, str, int, float, str], tuple[int, int, int]]:
+def resolve_claims_flow() -> Callable[..., tuple[int, int, int]]:
     from paper_pipeline.tools.claims_extraction import run_claim_extraction_flow
 
     return run_claim_extraction_flow

@@ -1,40 +1,25 @@
 from __future__ import annotations
 
-import json
 from pathlib import Path
 from typing import Any
 
-from paper_pipeline.artifacts import metadata_path_for_base_name
-
 from .text_cleanup import clean_definition_like_text
+from .title_resolution import find_default_relations_csv, load_metadata, load_relations_title_map, resolve_docling_title
+
+MIN_SECTION_WORDS = 10
 
 
-def extract_source_base_name(source: dict[str, Any] | None) -> str | None:
-    if not isinstance(source, dict):
-        return None
-
-    source_name = str(source.get("name", "")).strip()
-    if not source_name:
-        return None
-
-    return Path(source_name).stem or None
+def count_words(text: str) -> int:
+    return len(text.split()) if text.strip() else 0
 
 
-def load_metadata(source: dict[str, Any] | None, metadata_dir: Path | None = None) -> dict[str, Any]:
-    base_name = extract_source_base_name(source)
-    if not base_name or metadata_dir is None:
-        return {}
-
-    metadata_path = metadata_path_for_base_name(base_name, metadata_dir=metadata_dir)
-    if metadata_path is None:
-        return {}
-
-    payload = json.loads(metadata_path.read_text(encoding="utf-8"))
-    if isinstance(payload, dict) and isinstance(payload.get("metadata"), dict):
-        return payload["metadata"]
-    if isinstance(payload, dict):
-        return payload
-    return {}
+def should_keep_simplified_section(section: dict[str, Any]) -> bool:
+    text = str(section.get("text", "") or "").strip()
+    subsections = section.get("subsections", [])
+    has_subsections = isinstance(subsections, list) and len(subsections) > 0
+    if has_subsections:
+        return True
+    return count_words(text) > MIN_SECTION_WORDS
 
 
 def simplify_sections(sections: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -42,14 +27,14 @@ def simplify_sections(sections: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
     for section in sections:
         subsection_list = section.get("subsections", [])
-        simplified.append(
-            {
-                "title": section.get("title", ""),
-                "level": section.get("level", 1),
-                "text": clean_definition_like_text(str(section.get("text", ""))),
-                "subsections": simplify_sections(subsection_list if isinstance(subsection_list, list) else []),
-            }
-        )
+        simplified_section = {
+            "title": section.get("title", ""),
+            "level": section.get("level", 1),
+            "text": clean_definition_like_text(str(section.get("text", ""))).strip(),
+            "subsections": simplify_sections(subsection_list if isinstance(subsection_list, list) else []),
+        }
+        if should_keep_simplified_section(simplified_section):
+            simplified.append(simplified_section)
 
     return simplified
 
@@ -60,6 +45,13 @@ def build_final_document(
 ) -> dict[str, Any]:
     source = llm_filtered_document.get("source")
     metadata = load_metadata(source, metadata_dir=metadata_dir)
+    relations_title_map = load_relations_title_map(find_default_relations_csv())
+    resolved_title, _title_source = resolve_docling_title(
+        source=source if isinstance(source, dict) else None,
+        metadata_dir=metadata_dir,
+        relations_title_map=relations_title_map,
+        existing_title=str(metadata.get("title") or llm_filtered_document.get("paper_title") or "").strip(),
+    )
     sections = llm_filtered_document.get("sections", [])
 
     if not isinstance(sections, list):
@@ -70,7 +62,7 @@ def build_final_document(
         "version": "0.1.0",
         "paper": {
             "paper_id": metadata.get("paperId"),
-            "title": metadata.get("title") or llm_filtered_document.get("paper_title"),
+            "title": resolved_title,
             "year": metadata.get("year"),
             "doi": metadata.get("doi"),
             "citation_count": metadata.get("citationCount"),

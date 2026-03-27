@@ -4,7 +4,7 @@ from copy import deepcopy
 from pathlib import Path
 from typing import Any
 
-from .final_document import load_metadata
+from .title_resolution import find_default_relations_csv, load_relations_title_map, resolve_docling_title
 
 
 SECTION_FILTER_RULES: dict[str, set[str]] = {
@@ -23,6 +23,7 @@ SECTION_FILTER_RULES: dict[str, set[str]] = {
         "results",
     },
 }
+MIN_SECTION_WORDS = 10
 
 
 def normalize_section_title(title: str) -> str:
@@ -43,7 +44,10 @@ def extract_source_base_name(logical_document: dict[str, Any]) -> str | None:
     if not source_name:
         return None
 
-    return Path(source_name).stem or None
+    path = Path(source_name)
+    if path.suffix.lower() == ".pdf":
+        return path.stem or None
+    return path.name or None
 
 
 def load_metadata_paper_title(
@@ -51,12 +55,13 @@ def load_metadata_paper_title(
     metadata_dir: Path | None = None,
 ) -> str | None:
     source = logical_document.get("source")
-    metadata = load_metadata(source if isinstance(source, dict) else None, metadata_dir=metadata_dir)
-    if not metadata:
-        return None
-
-    title = str(metadata.get("title", "")).strip()
-    return title or None
+    relations_title_map = load_relations_title_map(find_default_relations_csv())
+    title, _source = resolve_docling_title(
+        source=source if isinstance(source, dict) else None,
+        metadata_dir=metadata_dir,
+        relations_title_map=relations_title_map,
+    )
+    return title
 
 
 def should_drop_section(title: str, paper_title: str | None = None) -> bool:
@@ -72,6 +77,19 @@ def should_drop_section(title: str, paper_title: str | None = None) -> bool:
         return False
 
     return bool(tokens & SECTION_FILTER_RULES["drop"])
+
+
+def count_words(text: str) -> int:
+    return len(text.split()) if text.strip() else 0
+
+
+def should_keep_section_content(section: dict[str, Any]) -> bool:
+    text = str(section.get("text", "") or "").strip()
+    subsections = section.get("subsections", [])
+    has_subsections = isinstance(subsections, list) and len(subsections) > 0
+    if has_subsections:
+        return True
+    return count_words(text) > MIN_SECTION_WORDS
 
 
 def filter_sections(
@@ -90,6 +108,8 @@ def filter_sections(
 
         title = str(section.get("title", "")).strip()
         if should_drop_section(title, paper_title=paper_title):
+            continue
+        if not should_keep_section_content(section):
             continue
 
         filtered.append(section)
@@ -123,7 +143,7 @@ def build_filtered_document(
     filter_rules = {
         "drop": sorted(SECTION_FILTER_RULES["drop"]),
         "keep": sorted(SECTION_FILTER_RULES["keep"]),
-        "policy": "drop_preamble_and_paper_title; drop_only_when_title_matches_rule; keep_ambiguous_sections",
+        "policy": "drop_preamble_and_paper_title; drop_only_when_title_matches_rule; keep_ambiguous_sections; prune_empty_or_short_leaf_sections",
     }
 
     return {
