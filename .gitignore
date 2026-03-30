@@ -22,3 +22,8 @@ scripts/heuristics_model/tests/__pycache__/
 
 # Pipeline data
 data/
+
+# Local agent planning files
+AGENTS.md
+PLANS.md
+TASKS.md

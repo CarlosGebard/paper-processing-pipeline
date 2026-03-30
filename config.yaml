@@ -6,6 +6,8 @@ exploration:
   min_year: 2000
   buffer_size: 50
   max_abstract_words: 300
+  seed_doi_file: "data/sources/seed_dois.txt"
+  completed_seed_doi_file: "data/sources/explored_seed_dois.txt"
 
 metadata_selection:
   model: "gpt-5-mini"
@@ -39,4 +41,10 @@ llm_to_claim:
   output_dir: "data/stages/04_claims"
   model: "gpt-5-mini"
   max_claims: 20
+  auto_approve_max_tokens: 7000
   temperature: 0.0
+
+testing:
+  root_dir: "data/testing"
+  docling_output_dir: "data/testing/docling"
+  claims_output_dir: "data/testing/claims"

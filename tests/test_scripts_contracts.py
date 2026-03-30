@@ -3,10 +3,10 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from paper_pipeline import artifacts
-import paper_pipeline.tools.claims_extraction as claims_extraction
-from paper_pipeline.tools.bibliography import generate_bib
-from paper_pipeline.tools.claims_extraction import (
+from src import artifacts
+import src.tools.claims_extraction as claims_extraction
+from src.tools.bibliography import generate_bib
+from src.tools.claims_extraction import (
     AUTO_APPROVE_MAX_TOKENS,
     build_claims_preview,
     build_prompt,
@@ -16,7 +16,7 @@ from paper_pipeline.tools.claims_extraction import (
     run_claim_extraction_flow,
     run_claim_extraction_for_file,
 )
-from paper_pipeline.tools.pdf_normalization import (
+from src.tools.pdf_normalization import (
     _guess_base_name_from_stem,
     audit_raw_pdf_dir,
     sync_raw_pdfs_into_input,

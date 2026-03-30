@@ -55,6 +55,7 @@ Current stage roots are:
 - metadata: `data/sources/metadata`
 - discarded: `data/sources/discarded_papers`
 - registry: `data/sources/registry`
+- csv exports and csv reference files: `data/csv`
 - raw PDFs: `data/stages/01_raw_pdf`
 - normalized PDFs: `data/stages/02_input_pdfs`
 - Docling and heuristics bundles: `data/stages/03_docling_heuristics`
@@ -62,3 +63,8 @@ Current stage roots are:
 
 If you need to move storage locations, change them in `config.yaml` instead of hardcoding paths elsewhere.
 
+To create the canonical `data/` directory layout without moving or deleting existing files:
+
+```bash
+python ops/scripts/create_data_layout.py
+```

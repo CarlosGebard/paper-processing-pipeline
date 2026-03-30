@@ -3,15 +3,15 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-import config_loader as ctx
-import paper_pipeline.docling_pipeline.filtered_document as filtered_document
-import paper_pipeline.docling_pipeline.final_document as final_document
-from paper_pipeline.docling_pipeline.filtered_document import build_filtered_document
-from paper_pipeline.docling_pipeline.final_document import build_final_document
-from paper_pipeline.docling_pipeline.converter import (
+import pytest
+
+from src.docling_heuristics_pipeline.filtered_document import build_filtered_document
+from src.docling_heuristics_pipeline.final_document import build_final_document
+from src.docling_heuristics_pipeline.converter import (
     convert_pdf_for_pipeline,
     export_conversion_outputs,
 )
+from src.docling_heuristics_pipeline.logical_document import build_logical_document
 
 
 def test_convert_pdf_for_pipeline_writes_canonical_outputs(tmp_path, monkeypatch) -> None:
@@ -49,7 +49,7 @@ def test_convert_pdf_for_pipeline_writes_canonical_outputs(tmp_path, monkeypatch
         }
 
     monkeypatch.setattr(
-        "paper_pipeline.docling_pipeline.converter.convert_pdf",
+        "src.docling_heuristics_pipeline.converter.convert_pdf",
         fake_convert_pdf,
     )
 
@@ -102,6 +102,90 @@ def test_export_conversion_outputs_moves_intermediate_files_into_pdf_subdir(tmp_
     assert final_payload["schema_name"] == "FinalPaperSectionsDocument"
 
 
+def test_build_logical_document_keeps_table_content_in_section_text() -> None:
+    logical = build_logical_document(
+        {
+            "name": "doi-10.1000-demo.pdf",
+            "version": "1.0",
+            "texts": [
+                {"label": "section_header", "text": "Results", "level": 1},
+                {"label": "text", "text": "Lead paragraph before table."},
+            ],
+            "tables": [
+                {
+                    "caption": "Primary outcomes",
+                    "rows": [
+                        [{"text": "Group"}, {"text": "Weight loss"}],
+                        [{"text": "Intervention"}, {"text": "5 kg"}],
+                    ],
+                }
+            ],
+            "groups": [],
+            "pictures": [],
+            "key_value_items": [],
+            "body": {
+                "children": [
+                    {"$ref": "#/texts/0"},
+                    {"$ref": "#/texts/1"},
+                    {"$ref": "#/tables/0"},
+                ]
+            },
+        }
+    )
+
+    section_text = logical["sections"][0]["text"]
+    assert "Lead paragraph before table." in section_text
+    assert "Table: Primary outcomes" in section_text
+    assert "Group | Weight loss" in section_text
+    assert "Intervention | 5 kg" in section_text
+
+
+def test_build_logical_document_renders_docling_table_cells_grid() -> None:
+    logical = build_logical_document(
+        {
+            "name": "doi-10.1000-demo.pdf",
+            "version": "1.0",
+            "texts": [
+                {"label": "section_header", "text": "Results", "level": 1},
+                {"label": "text", "text": "Lead paragraph before table."},
+                {"label": "text", "text": "Table 1. Baseline characteristics."},
+                {"label": "text", "text": "* Values are mean ± SD."},
+            ],
+            "tables": [
+                {
+                    "label": "table",
+                    "captions": [{"$ref": "#/texts/2"}],
+                    "footnotes": [{"$ref": "#/texts/3"}],
+                    "data": {
+                        "table_cells": [
+                            {"start_row_offset_idx": 0, "end_row_offset_idx": 1, "start_col_offset_idx": 0, "end_col_offset_idx": 1, "text": "Group"},
+                            {"start_row_offset_idx": 0, "end_row_offset_idx": 1, "start_col_offset_idx": 1, "end_col_offset_idx": 2, "text": "Weight loss"},
+                            {"start_row_offset_idx": 1, "end_row_offset_idx": 2, "start_col_offset_idx": 0, "end_col_offset_idx": 1, "text": "Intervention"},
+                            {"start_row_offset_idx": 1, "end_row_offset_idx": 2, "start_col_offset_idx": 1, "end_col_offset_idx": 2, "text": "5 kg"},
+                        ]
+                    },
+                }
+            ],
+            "groups": [],
+            "pictures": [],
+            "key_value_items": [],
+            "body": {
+                "children": [
+                    {"$ref": "#/texts/0"},
+                    {"$ref": "#/texts/1"},
+                    {"$ref": "#/tables/0"},
+                ]
+            },
+        }
+    )
+
+    section_text = logical["sections"][0]["text"]
+    assert "Table: Table 1. Baseline characteristics." in section_text
+    assert "Group | Weight loss" in section_text
+    assert "Intervention | 5 kg" in section_text
+    assert "* Values are mean ± SD." in section_text
+
+
 def test_build_final_document_includes_citation_count_from_metadata(tmp_path) -> None:
     metadata_dir = tmp_path / "metadata"
     metadata_dir.mkdir()
@@ -134,49 +218,33 @@ def test_build_final_document_includes_citation_count_from_metadata(tmp_path) ->
     assert result["paper"]["citation_count"] == 420
 
 
-def test_build_final_document_falls_back_to_relations_title_when_metadata_missing(tmp_path, monkeypatch) -> None:
+def test_build_final_document_requires_metadata_title(tmp_path) -> None:
     metadata_dir = tmp_path / "metadata"
     metadata_dir.mkdir()
 
-    monkeypatch.setattr(final_document, "find_default_relations_csv", lambda: tmp_path / "doi_pdf_relations.csv")
-    monkeypatch.setattr(
-        final_document,
-        "load_relations_title_map",
-        lambda _path: {"10.1000-demo": "Recovered PDF Title"},
-    )
-
-    result = build_final_document(
-        {
-            "source": {"name": "doi-10.1000-demo"},
-            "paper_title": "None",
-            "sections": [{"title": "Methods", "text": "Body content with enough words to survive pruning safely.", "subsections": []}],
-        },
-        metadata_dir=metadata_dir,
-    )
-
-    assert result["paper"]["title"] == "Recovered PDF Title"
+    with pytest.raises(ValueError, match="No canonical metadata found"):
+        build_final_document(
+            {
+                "source": {"name": "doi-10.1000-demo"},
+                "paper_title": "Legacy title",
+                "sections": [{"title": "Methods", "text": "Body content with enough words to survive pruning safely.", "subsections": []}],
+            },
+            metadata_dir=metadata_dir,
+        )
 
 
-def test_build_filtered_document_falls_back_to_relations_title_when_metadata_missing(tmp_path, monkeypatch) -> None:
+def test_build_filtered_document_requires_metadata_title(tmp_path) -> None:
     metadata_dir = tmp_path / "metadata"
     metadata_dir.mkdir()
 
-    monkeypatch.setattr(filtered_document, "find_default_relations_csv", lambda: tmp_path / "doi_pdf_relations.csv")
-    monkeypatch.setattr(
-        filtered_document,
-        "load_relations_title_map",
-        lambda _path: {"10.1000-demo": "Recovered PDF Title"},
-    )
-
-    result = build_filtered_document(
-        {
-            "source": {"name": "doi-10.1000-demo"},
-            "sections": [{"title": "Methods", "level": 1, "text": "This section has enough words to remain after filtered pruning safely.", "subsections": []}],
-        },
-        metadata_dir=metadata_dir,
-    )
-
-    assert result["paper_title"] == "Recovered PDF Title"
+    with pytest.raises(ValueError, match="No canonical metadata found"):
+        build_filtered_document(
+            {
+                "source": {"name": "doi-10.1000-demo"},
+                "sections": [{"title": "Methods", "level": 1, "text": "This section has enough words to remain after filtered pruning safely.", "subsections": []}],
+            },
+            metadata_dir=metadata_dir,
+        )
 
 
 def test_build_final_document_prunes_empty_and_short_leaf_sections(tmp_path) -> None:
@@ -299,3 +367,48 @@ def test_build_filtered_document_keeps_short_parent_when_subsections_have_conten
     assert len(result["sections"]) == 1
     assert result["sections"][0]["title"] == "Methods"
     assert [section["title"] for section in result["sections"][0]["subsections"]] == ["Protocol"]
+
+
+def test_build_filtered_document_keeps_short_leaf_section_with_table_content(tmp_path) -> None:
+    metadata_dir = tmp_path / "metadata"
+    metadata_dir.mkdir()
+    source_name = "doi-10.1000-demo"
+    (metadata_dir / f"{source_name}.metadata.json").write_text(
+        json.dumps({"metadata": {"title": "Example paper"}}),
+        encoding="utf-8",
+    )
+
+    result = build_filtered_document(
+        {
+            "source": {"name": source_name},
+            "sections": [
+                {"title": "Results", "level": 1, "text": "Table: Table 1.\nA | B", "subsections": []},
+            ],
+        },
+        metadata_dir=metadata_dir,
+    )
+
+    assert [section["title"] for section in result["sections"]] == ["Results"]
+
+
+def test_build_final_document_keeps_short_leaf_section_with_table_content(tmp_path) -> None:
+    metadata_dir = tmp_path / "metadata"
+    metadata_dir.mkdir()
+    source_name = "doi-10.1000-demo"
+    (metadata_dir / f"{source_name}.metadata.json").write_text(
+        json.dumps({"metadata": {"title": "Example paper"}}),
+        encoding="utf-8",
+    )
+
+    result = build_final_document(
+        {
+            "source": {"name": source_name},
+            "paper_title": "Fallback title",
+            "sections": [
+                {"title": "Results", "text": "Table: Table 1.\nA | B", "subsections": []},
+            ],
+        },
+        metadata_dir=metadata_dir,
+    )
+
+    assert [section["title"] for section in result["sections"]] == ["Results"]
