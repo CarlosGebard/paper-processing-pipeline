@@ -6,7 +6,7 @@ import sys
 from pathlib import Path
 
 
-SCRIPT_PATH = Path(__file__).resolve().parents[1] / "ops" / "scripts" / "reporting" / "export_pipeline_conversion_rates.py"
+SCRIPT_PATH = Path(__file__).resolve().parents[1] / "analytics" / "reporting" / "export_pipeline_conversion_rates.py"
 SPEC = importlib.util.spec_from_file_location("export_pipeline_conversion_rates", SCRIPT_PATH)
 assert SPEC and SPEC.loader
 MODULE = importlib.util.module_from_spec(SPEC)

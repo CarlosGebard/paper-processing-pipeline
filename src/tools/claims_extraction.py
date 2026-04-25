@@ -264,19 +264,27 @@ def validate_claims(data: Any) -> list[dict[str, Any]]:
 
     required_keys = {
         "claim_text",
-        "claim_type",
+        "claim_family",
         "support_section",
         "population",
-        "condition",
+        "subgroup",
         "intervention_or_exposure",
         "comparator",
+        "arm",
+        "comparison_type",
         "outcome",
         "direction",
-        "effect_size",
+        "units",
+        "baseline_value",
+        "followup_value",
+        "within_group_change",
+        "between_group_difference",
         "dose",
         "duration",
+        "timepoint",
         "study_design",
         "sample_size",
+        "keywords",
         "statistics",
         "evidence_span",
         "confidence",
@@ -292,8 +300,8 @@ def validate_claims(data: Any) -> list[dict[str, Any]]:
         if missing:
             raise ValueError(f"Claim at index {i} is missing keys: {sorted(missing)}")
 
-        if item["claim_type"] != "empirical":
-            raise ValueError(f"Claim at index {i} has invalid claim_type: {item['claim_type']}")
+        if not isinstance(item["claim_family"], str) or not item["claim_family"].strip():
+            raise ValueError(f"Claim at index {i} has invalid claim_family: {item['claim_family']}")
 
         if not isinstance(item["support_section"], str) or not item["support_section"].strip():
             raise ValueError(f"Claim at index {i} has invalid support_section: {item['support_section']}")
@@ -306,6 +314,9 @@ def validate_claims(data: Any) -> list[dict[str, Any]]:
 
         if not isinstance(item["confidence"], (int, float)):
             raise ValueError(f"Claim at index {i} has invalid confidence.")
+
+        if not isinstance(item["keywords"], list):
+            raise ValueError(f"Claim at index {i} has invalid keywords field.")
 
         if not isinstance(item["statistics"], dict):
             raise ValueError(f"Claim at index {i} has non-object statistics field.")

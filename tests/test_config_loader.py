@@ -67,22 +67,30 @@ def test_get_env_or_config_falls_back_to_config(monkeypatch) -> None:
 def test_get_pipeline_paths_defaults_claims_output_to_stage_04() -> None:
     paths = config_loader.get_pipeline_paths({})
 
+    assert paths["raw_pdf_dir"] == config_loader.CORPUS_INFO_DIR / "pdf_retrieval" / "downloaded_pdfs"
+    assert paths["docling_input_dir"] == config_loader.DATA_DIR / "stages" / "02_normalized_pdfs"
+    assert paths["unmatched_pdf_dir"] == config_loader.CORPUS_INFO_DIR / "pdf_retrieval" / "unmatched_pdf"
     assert paths["claims_output_dir"] == config_loader.DATA_DIR / "stages" / "04_claims"
 
 
-def test_get_testing_paths_defaults_to_data_testing() -> None:
+def test_get_testing_paths_defaults_to_archive_testing_workspace() -> None:
     paths = config_loader.get_testing_paths({})
 
-    assert paths["testing_root_dir"] == config_loader.DATA_DIR / "testing"
-    assert paths["testing_docling_dir"] == config_loader.DATA_DIR / "testing" / "docling"
-    assert paths["testing_claims_dir"] == config_loader.DATA_DIR / "testing" / "claims"
+    assert paths["testing_root_dir"] == config_loader.DATA_DIR / "archive" / "testing_1"
+    assert paths["testing_docling_dir"] == config_loader.DATA_DIR / "archive" / "testing_1" / "docling"
+    assert paths["testing_claims_dir"] == config_loader.DATA_DIR / "archive" / "testing_1" / "claims"
 
 
-def test_pre_ingestion_defaults_live_under_data_csv() -> None:
-    assert config_loader.PRE_INGESTION_DIR == config_loader.DATA_DIR / "csv" / "pre_ingestion_topics"
+def test_pre_ingestion_defaults_live_under_corpus_info_workspace() -> None:
+    assert config_loader.CORPUS_INFO_DIR == config_loader.DATA_DIR / "corpus_info"
+    assert config_loader.PRE_INGESTION_EDITABLE_DIR == config_loader.DATA_DIR / "corpus_info" / "pre_ingestion_topics"
+    assert config_loader.PRE_INGESTION_DIR == config_loader.DATA_DIR / "corpus_info" / "pre_ingestion_topics"
     assert config_loader.PRE_INGESTION_PAPERS_CSV == config_loader.PRE_INGESTION_DIR / "papers.csv"
     assert config_loader.PRE_INGESTION_CANDIDATE_TERMS_CSV == config_loader.PRE_INGESTION_DIR / "candidate_terms_top500.csv"
-    assert config_loader.PRE_INGESTION_DRAFT_TOPICS_YAML == config_loader.PRE_INGESTION_DIR / "draft_topics.yaml"
+    assert config_loader.PRE_INGESTION_GENERATED_DRAFT_TOPICS_YAML == config_loader.PRE_INGESTION_EDITABLE_DIR / "draft_topics.generated.yaml"
+    assert config_loader.PRE_INGESTION_TOPICS_YAML == config_loader.PRE_INGESTION_EDITABLE_DIR / "topics.yaml"
+    assert config_loader.PRE_INGESTION_DRAFT_TOPICS_YAML == config_loader.PRE_INGESTION_TOPICS_YAML
+    assert config_loader.PRE_INGESTION_BOOTSTRAP_RULES_YAML == config_loader.PRE_INGESTION_EDITABLE_DIR / "bootstrap_rules.yaml"
     assert config_loader.PRE_INGESTION_AUDIT_DIR == config_loader.PRE_INGESTION_DIR / "audit"
 
 
@@ -91,26 +99,44 @@ def test_get_data_layout_dirs_includes_runtime_archive_and_pre_ingestion_csv() -
 
     assert config_loader.DATA_RUNTIME_DIR in layout_dirs
     assert config_loader.DATA_ARCHIVE_DIR in layout_dirs
+    assert config_loader.CORPUS_INFO_DIR in layout_dirs
+    assert config_loader.UNMATCHED_PDF_DIR in layout_dirs
+    assert config_loader.PRE_INGESTION_EDITABLE_DIR in layout_dirs
     assert config_loader.PRE_INGESTION_DIR in layout_dirs
     assert config_loader.PRE_INGESTION_AUDIT_DIR in layout_dirs
 
 
-def test_get_exploration_seed_doi_file_defaults_to_sources_seed_file() -> None:
+def test_get_exploration_seed_doi_file_defaults_to_metadata_rules_seed_file() -> None:
     path = config_loader.get_exploration_seed_doi_file({})
 
-    assert path == config_loader.DATA_DIR / "sources" / "seed_dois.txt"
+    assert path == config_loader.CORPUS_INFO_DIR / "metadata_rules" / "seed_dois.txt"
 
 
-def test_get_exploration_completed_seed_doi_file_defaults_to_sources_completed_seed_file() -> None:
+def test_get_exploration_completed_seed_doi_file_defaults_to_metadata_rules_completed_seed_file() -> None:
     path = config_loader.get_exploration_completed_seed_doi_file({})
 
-    assert path == config_loader.DATA_DIR / "sources" / "explored_seed_dois.txt"
+    assert path == config_loader.CORPUS_INFO_DIR / "metadata_rules" / "explored_seed_dois.txt"
 
 
 def test_get_claims_auto_approve_max_tokens_defaults_to_7000() -> None:
     value = config_loader.get_claims_auto_approve_max_tokens({})
 
     assert value == 7000
+
+
+def test_resolve_available_raw_pdf_dir_prefers_legacy_workspace_when_canonical_is_empty(tmp_path, monkeypatch) -> None:
+    canonical = tmp_path / "pdf_retrieval" / "downloaded_pdfs"
+    legacy = tmp_path / "pdf_retireval" / "downloaded_pdfs"
+    canonical.mkdir(parents=True)
+    legacy.mkdir(parents=True)
+    (legacy / "example.pdf").write_bytes(b"%PDF-1.4\n")
+
+    monkeypatch.setattr(config_loader, "RAW_PDF_DIR", canonical)
+    monkeypatch.setattr(config_loader, "LEGACY_PDF_RETIREVAL_DIR", tmp_path / "pdf_retireval")
+
+    resolved = config_loader.resolve_available_raw_pdf_dir()
+
+    assert resolved == legacy
 
 
 def test_create_data_layout_script_uses_canonical_layout(monkeypatch) -> None:

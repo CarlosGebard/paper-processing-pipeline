@@ -34,8 +34,6 @@ def resolve_pdf_for_doi(doi: str, input_dir: Path | None = None) -> Path:
 
 
 def run_pipeline_flow() -> None:
-    ctx.ensure_dirs()
-
     pdfs = list_pdf_candidates()
     if not pdfs:
         print(f"No hay PDFs en {ctx.display_path(ctx.DOCLING_INPUT_DIR)}.")
@@ -104,8 +102,6 @@ def run_end_to_end_flow(
     max_claims: int | None = None,
     temperature: float | None = None,
 ) -> None:
-    ctx.ensure_dirs()
-
     pdfs = list_pdf_candidates()
     if not pdfs:
         print(f"No hay PDFs en {ctx.display_path(ctx.DOCLING_INPUT_DIR)}.")
@@ -190,8 +186,6 @@ def run_single_paper_testing_flow(
     max_claims: int | None = None,
     temperature: float | None = None,
 ) -> dict[str, object]:
-    ctx.ensure_dirs()
-
     pdf_path = resolve_pdf_for_doi(doi)
     document_id, resolved_doi, base_name = parse_document_from_pdf_name(pdf_path)
 

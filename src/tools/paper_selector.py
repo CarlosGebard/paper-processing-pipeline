@@ -8,8 +8,8 @@ from urllib import error, request
 
 from src.docling_heuristics_pipeline.section_classifier import DEFAULT_DOTENV_PATH, get_env_value
 from src.prompts import (
-    PAPER_SELECTOR_SYSTEM_PROMPT,
     build_paper_selector_user_prompt,
+    get_paper_selector_system_prompt,
 )
 
 
@@ -53,11 +53,19 @@ def build_user_prompt(candidates: list[PaperCandidate]) -> str:
     return build_paper_selector_user_prompt(candidates)
 
 
-def build_responses_payload(model: str, candidates: list[PaperCandidate]) -> dict[str, Any]:
+def build_responses_payload(
+    model: str,
+    candidates: list[PaperCandidate],
+    *,
+    selection_profile: str = "broad-nutrition",
+) -> dict[str, Any]:
     return {
         "model": model,
         "input": [
-            {"role": "system", "content": PAPER_SELECTOR_SYSTEM_PROMPT},
+            {
+                "role": "system",
+                "content": get_paper_selector_system_prompt(selection_profile),
+            },
             {"role": "user", "content": build_user_prompt(candidates)},
         ],
         "text": {
@@ -141,6 +149,8 @@ def normalize_decisions(
 def classify_papers_with_openai(
     candidates: list[PaperCandidate],
     model: str,
+    *,
+    selection_profile: str = "broad-nutrition",
     dotenv_path: str | Path = DEFAULT_DOTENV_PATH,
 ) -> tuple[list[dict[str, str]], dict[str, Any]]:
     api_key = get_env_value("OPENAI_API_KEY", dotenv_path=dotenv_path)
@@ -149,7 +159,11 @@ def classify_papers_with_openai(
     if not api_key:
         raise ValueError("Falta OPENAI_API_KEY en el entorno o en .env.")
 
-    payload = build_responses_payload(model=model, candidates=candidates)
+    payload = build_responses_payload(
+        model=model,
+        candidates=candidates,
+        selection_profile=selection_profile,
+    )
     body = json.dumps(payload).encode("utf-8")
 
     req = request.Request(

@@ -4,6 +4,7 @@ import json
 import random
 import threading
 import time
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Iterator
 
@@ -55,9 +56,6 @@ selection_batch_size = max(1, int(metadata_selection_cfg.get("batch_size", 20)))
 papers_dir = paths["metadata_dir"]
 discarded_dir = paths["discarded_dir"]
 
-papers_dir.mkdir(parents=True, exist_ok=True)
-discarded_dir.mkdir(parents=True, exist_ok=True)
-
 session = requests.Session()
 if SEMANTIC_API_KEY:
     session.headers.update({"x-api-key": SEMANTIC_API_KEY})
@@ -69,9 +67,18 @@ PAPER_FIELDS = "paperId,title,year,authors,citationCount,externalIds,openAccessP
 CITATION_FIELDS = f"citingPaper.{PAPER_FIELDS}"
 
 
+def normalize_selection_mode(selection_mode: str) -> str:
+    normalized = str(selection_mode or "").strip()
+    if normalized in {"broad-nutrition", "nutrition-rag"}:
+        return "broad-nutrition"
+    if normalized in {"undercovered-topics", "gap-rag"}:
+        return "undercovered-topics"
+    raise ValueError(f"Selection mode no soportado: {selection_mode}")
+
+
 def _collect_processed_ids(directory: Path) -> set[str]:
     processed: set[str] = set()
-    for path in directory.glob("*.json"):
+    for path in directory.rglob("*.json"):
         processed.add(path.stem)
         try:
             payload = json.loads(path.read_text(encoding="utf-8"))
@@ -88,6 +95,36 @@ def _collect_processed_ids(directory: Path) -> set[str]:
 
 def collect_processed_papers() -> set[str]:
     return _collect_processed_ids(papers_dir) | _collect_processed_ids(discarded_dir)
+
+
+def _today_bucket_name() -> str:
+    return datetime.now().date().isoformat()
+
+
+def _gap_rag_discarded_dir(bucket_name: str | None = None) -> Path:
+    return discarded_dir / "gap-rag" / (bucket_name or _today_bucket_name())
+
+
+def _resolve_existing_discarded_path(file_stem: str) -> Path | None:
+    legacy_path = discarded_dir / f"{file_stem}.json"
+    if legacy_path.exists():
+        return legacy_path
+
+    matches = sorted(discarded_dir.rglob(f"{file_stem}.json"))
+    if matches:
+        return matches[0]
+    return None
+
+
+def _discard_destination_path(file_stem: str, selection: dict[str, str] | None) -> Path:
+    existing = _resolve_existing_discarded_path(file_stem)
+    if existing is not None:
+        return existing
+
+    selection_mode = str((selection or {}).get("mode") or "").strip()
+    if selection_mode and normalize_selection_mode(selection_mode) == "undercovered-topics":
+        return _gap_rag_discarded_dir() / f"{file_stem}.json"
+    return discarded_dir / f"{file_stem}.json"
 
 
 def _semantic_rate_limit() -> None:
@@ -121,13 +158,6 @@ def request_with_backoff(url: str, params: dict[str, Any] | None = None) -> requ
         response.raise_for_status()
 
     raise RuntimeError("Max retries exceeded")
-
-
-def fetch_seed_metadata() -> dict[str, Any]:
-    url = f"{SEMANTIC_URL}/paper/{seed}"
-    params = {"fields": "paperId,title,citationCount,year"}
-    response = request_with_backoff(url, params=params)
-    return response.json()
 
 
 def fetch_paper_by_doi(doi: str) -> dict[str, Any]:
@@ -166,6 +196,9 @@ def load_seed_dois(
     if seeds:
         return seeds
 
+    if doi_file.exists():
+        return []
+
     if fallback_seed:
         normalized_seed = normalize_doi(fallback_seed)
         if normalized_seed:
@@ -180,14 +213,55 @@ def load_completed_seed_dois(doi_file: Path = completed_seed_doi_file) -> set[st
     return set(_load_doi_list(doi_file))
 
 
-def append_completed_seed_doi(doi: str, doi_file: Path = completed_seed_doi_file) -> None:
+def _remove_seed_doi_from_queue(doi: str, doi_file: Path) -> None:
+    if not doi_file.exists():
+        return
+
+    normalized = normalize_doi(doi)
+    kept_lines: list[str] = []
+
+    for raw_line in doi_file.read_text(encoding="utf-8").splitlines():
+        line = raw_line.strip()
+        if line and not line.startswith("#") and normalize_doi(line) == normalized:
+            continue
+        kept_lines.append(raw_line)
+
+    content = "\n".join(kept_lines)
+    if kept_lines:
+        content += "\n"
+    doi_file.write_text(content, encoding="utf-8")
+
+
+def sync_seed_doi_queue(
+    *,
+    source_doi_file: Path = seed_doi_file,
+    completed_doi_file: Path = completed_seed_doi_file,
+) -> None:
+    completed_dois = load_completed_seed_dois(completed_doi_file)
+    if not completed_dois or not source_doi_file.exists():
+        return
+
+    for doi in completed_dois:
+        _remove_seed_doi_from_queue(doi, source_doi_file)
+
+
+def append_completed_seed_doi(
+    doi: str,
+    doi_file: Path = completed_seed_doi_file,
+    *,
+    source_doi_file: Path | None = seed_doi_file,
+) -> None:
     normalized = normalize_doi(doi)
     existing = load_completed_seed_dois(doi_file)
     if normalized in existing:
+        if source_doi_file is not None:
+            _remove_seed_doi_from_queue(normalized, source_doi_file)
         return
     doi_file.parent.mkdir(parents=True, exist_ok=True)
     with doi_file.open("a", encoding="utf-8") as fh:
         fh.write(f"{normalized}\n")
+    if source_doi_file is not None:
+        _remove_seed_doi_from_queue(normalized, source_doi_file)
 
 
 def truncate_abstract(text: str | None) -> str | None:
@@ -334,16 +408,44 @@ def _record_identifiers(record: dict[str, Any]) -> set[str]:
     return identifiers
 
 
+def _ensure_parent_saved(
+    parent: str | None,
+    *,
+    parent_paper: dict[str, Any] | None = None,
+    seed_doi: str | None = None,
+    processed_papers: set[str] | None = None,
+) -> None:
+    if not parent or parent_paper is None:
+        return
+    if processed_papers is not None and parent in processed_papers:
+        return
+    save_paper(
+        parent_paper,
+        parent=None,
+        seed_doi=seed_doi,
+        is_seed_paper=False,
+        processed_papers=processed_papers,
+    )
+
+
 def save_paper(
     paper: dict[str, Any],
     *,
     parent: str | None,
+    parent_paper: dict[str, Any] | None = None,
     seed_doi: str | None = None,
     is_seed_paper: bool = False,
     processed_papers: set[str] | None = None,
 ) -> None:
+    _ensure_parent_saved(
+        parent,
+        parent_paper=parent_paper,
+        seed_doi=seed_doi,
+        processed_papers=processed_papers,
+    )
     file_stem = _paper_file_stem(paper)
     file_path = papers_dir / f"{file_stem}.metadata.json"
+    file_path.parent.mkdir(parents=True, exist_ok=True)
     incoming = paper_to_metadata_record(
         paper,
         parent=parent,
@@ -364,12 +466,21 @@ def save_paper(
 def save_discarded(
     paper: dict[str, Any],
     *,
+    parent: str | None = None,
+    parent_paper: dict[str, Any] | None = None,
     seed_doi: str | None = None,
     selection: dict[str, str] | None = None,
     processed_papers: set[str] | None = None,
 ) -> None:
+    _ensure_parent_saved(
+        parent,
+        parent_paper=parent_paper,
+        seed_doi=seed_doi,
+        processed_papers=processed_papers,
+    )
     file_stem = _paper_file_stem(paper)
-    file_path = discarded_dir / f"{file_stem}.json"
+    file_path = _discard_destination_path(file_stem, selection)
+    file_path.parent.mkdir(parents=True, exist_ok=True)
     incoming = _discard_file_payload(paper, seed_doi=seed_doi, selection=selection)
 
     if file_path.exists():
@@ -386,7 +497,7 @@ def _paper_storage_state(paper: dict[str, Any]) -> str | None:
     file_stem = _paper_file_stem(paper)
     if (papers_dir / f"{file_stem}.metadata.json").exists():
         return "kept"
-    if (discarded_dir / f"{file_stem}.json").exists():
+    if _resolve_existing_discarded_path(file_stem) is not None:
         return "discarded"
     return None
 
@@ -421,34 +532,6 @@ def iter_seed_citations(seed_paper: dict[str, Any]) -> Iterator[dict[str, Any]]:
         offset += 100
 
 
-def explore() -> None:
-    seed_meta = fetch_seed_metadata()
-    accepted = 0
-
-    for paper in iter_seed_citations(seed_meta):
-        abstract = truncate_abstract(paper.get("abstract"))
-
-        print("\n==============================")
-        print("TITLE:", paper.get("title"))
-        print("YEAR:", paper.get("year"))
-        print("CITATIONS:", paper.get("citationCount"))
-        print("\nABSTRACT:\n")
-        print(abstract if abstract else "No abstract found")
-        print("==============================")
-
-        decision = input("keep? (y/n/q): ").lower().strip()
-        if decision == "y":
-            save_paper(paper, parent=seed, processed_papers=None)
-            accepted += 1
-        elif decision == "n":
-            save_discarded(paper, processed_papers=None)
-        elif decision == "q":
-            break
-
-        if accepted >= limit:
-            break
-
-
 def _build_paper_candidate(index: int, paper: dict[str, Any]) -> PaperCandidate:
     return PaperCandidate(
         id=f"cand_{index:03d}",
@@ -462,14 +545,17 @@ def _process_selection_batch(
     accepted: int,
     *,
     processed_papers: set[str],
+    selection_mode: str = "broad-nutrition",
 ) -> tuple[int, int, int, int]:
     if not batch:
         return accepted, 0, 0, 0
 
+    normalized_mode = normalize_selection_mode(selection_mode)
     candidates = [_build_paper_candidate(index + 1, item["paper"]) for index, item in enumerate(batch)]
     decisions, _raw_response = classify_papers_with_openai(
         candidates=candidates,
         model=selection_model,
+        selection_profile=normalized_mode,
     )
     decisions_by_id = {item["id"]: item for item in decisions}
     processed_count = 0
@@ -480,6 +566,7 @@ def _process_selection_batch(
         paper = item["paper"]
         seed_doi = item["seed_doi"]
         parent = item["parent"]
+        parent_paper = item.get("parent_paper")
         decision = decisions_by_id.get(
             candidate.id,
             {"decision": "uncertain", "reason": "missing_decision"},
@@ -495,9 +582,12 @@ def _process_selection_batch(
             print(f"  reason: {reason}")
             save_discarded(
                 paper,
+                parent=parent,
+                parent_paper=parent_paper,
                 seed_doi=seed_doi,
                 selection={
-                    "mode": "nutrition-rag",
+                    "mode": selection_mode,
+                    "profile": normalized_mode,
                     "decision": decision["decision"],
                     "reason": reason,
                     "preview": preview,
@@ -513,6 +603,7 @@ def _process_selection_batch(
         save_paper(
             paper,
             parent=parent,
+            parent_paper=parent_paper,
             seed_doi=seed_doi,
             processed_papers=processed_papers,
         )
@@ -522,7 +613,15 @@ def _process_selection_batch(
     return accepted, processed_count, kept_count, dropped_count
 
 
-def explore_with_nutrition_rag(seed_dois: list[str] | None = None) -> None:
+def explore_with_llm_selection(
+    *,
+    seed_dois: list[str] | None = None,
+    selection_mode: str,
+    summary_label: str,
+) -> None:
+    normalized_mode = normalize_selection_mode(selection_mode)
+    if seed_dois is None:
+        sync_seed_doi_queue()
     resolved_seed_dois = seed_dois or load_seed_dois()
     completed_seed_dois = load_completed_seed_dois()
     pending_seed_dois = [seed_doi for seed_doi in resolved_seed_dois if seed_doi not in completed_seed_dois]
@@ -580,6 +679,7 @@ def explore_with_nutrition_rag(seed_dois: list[str] | None = None) -> None:
                     "paper": paper,
                     "seed_doi": seed_doi,
                     "parent": seed_paper["paperId"],
+                    "parent_paper": seed_paper,
                 }
             )
             if len(batch) < selection_batch_size:
@@ -589,6 +689,7 @@ def explore_with_nutrition_rag(seed_dois: list[str] | None = None) -> None:
                 batch,
                 accepted,
                 processed_papers=processed_papers,
+                selection_mode=normalized_mode,
             )
             reviewed += processed_count
             dropped += dropped_count
@@ -599,6 +700,7 @@ def explore_with_nutrition_rag(seed_dois: list[str] | None = None) -> None:
                 batch,
                 accepted,
                 processed_papers=processed_papers,
+                selection_mode=normalized_mode,
             )
             reviewed += processed_count
             dropped += dropped_count
@@ -611,11 +713,12 @@ def explore_with_nutrition_rag(seed_dois: list[str] | None = None) -> None:
             batch,
             accepted,
             processed_papers=processed_papers,
+            selection_mode=normalized_mode,
         )
         reviewed += processed_count
         dropped += dropped_count
 
-    print("\nResumen metadata nutrition-rag")
+    print(f"\nResumen metadata {summary_label}")
     print(f"- Modelo OpenAI:          {selection_model}")
     print(f"- Seed DOI file:          {seed_doi_file}")
     print(f"- Seed DOIs loaded:       {len(resolved_seed_dois)}")
@@ -632,139 +735,39 @@ def explore_with_nutrition_rag(seed_dois: list[str] | None = None) -> None:
     print(f"- Source exhausted:       {'yes' if exhausted else 'no'}")
 
 
-def run_interactive_exploration() -> None:
-    try:
-        resolved_seed_dois = load_seed_dois()
-        completed_seed_dois = load_completed_seed_dois()
-        pending_seed_dois = [seed_doi for seed_doi in resolved_seed_dois if seed_doi not in completed_seed_dois]
-        if not pending_seed_dois:
-            print("\nSelection mode: interactive")
-            print("Seed DOI file:", seed_doi_file)
-            print("Seed DOI done file:", completed_seed_doi_file)
-            print("Seed DOIs loaded:", len(resolved_seed_dois))
-            print("Seed DOIs pending:", 0)
-            print("No pending seed DOIs to process.")
-            return
-    except Exception as exc:
-        raise SystemExit(f"Seed DOI inválido o no encontrado. Error: {exc}")
+def explore_with_nutrition_rag(seed_dois: list[str] | None = None) -> None:
+    explore_with_llm_selection(
+        seed_dois=seed_dois,
+        selection_mode="broad-nutrition",
+        summary_label="broad-nutrition",
+    )
 
-    processed_papers = collect_processed_papers()
-    accepted = 0
-    dropped = 0
-    existing = 0
-    reviewed = 0
-    skipped_seed_errors = 0
 
-    print("\nSelection mode: interactive")
-    print("Seed DOI file:", seed_doi_file)
-    print("Seed DOI done file:", completed_seed_doi_file)
-    print("Seed DOIs loaded:", len(resolved_seed_dois))
-    print("Seed DOIs pending:", len(pending_seed_dois))
-    print("First pending seed:", pending_seed_dois[0])
-    print("Minimum citations:", min_citations)
-    print("Minimum year:", min_year)
-    print("Max abstract words:", max_words)
-    print("Semantic Scholar rate limit:", "1 request/second")
-    print()
-
-    for seed_doi in pending_seed_dois:
-        try:
-            seed_paper = fetch_paper_by_doi(seed_doi)
-        except HTTPError as exc:
-            if exc.response is not None and exc.response.status_code == 404:
-                print(f"[SEED SKIP] {seed_doi} -> not found in Semantic Scholar")
-                append_completed_seed_doi(seed_doi)
-                skipped_seed_errors += 1
-                continue
-            raise
-
-        save_paper(
-            seed_paper,
-            parent=None,
-            seed_doi=seed_doi,
-            is_seed_paper=True,
-            processed_papers=processed_papers,
-        )
-        print(f"\n[SEED] {seed_doi} -> {seed_paper.get('title') or 'Unknown title'}")
-
-        stop_requested = False
-        for paper in iter_seed_citations(seed_paper):
-            state = _paper_storage_state(paper)
-            if state == "kept":
-                save_paper(
-                    paper,
-                    parent=seed_paper["paperId"],
-                    seed_doi=seed_doi,
-                    processed_papers=processed_papers,
-                )
-                existing += 1
-                continue
-            if state == "discarded":
-                save_discarded(
-                    paper,
-                    seed_doi=seed_doi,
-                    processed_papers=processed_papers,
-                )
-                existing += 1
-                continue
-
-            reviewed += 1
-            abstract = truncate_abstract(paper.get("abstract"))
-
-            print("\n==============================")
-            print("TITLE:", paper.get("title"))
-            print("YEAR:", paper.get("year"))
-            print("CITATIONS:", paper.get("citationCount"))
-            print("SEED DOI:", seed_doi)
-            print("\nABSTRACT:\n")
-            print(abstract if abstract else "No abstract found")
-            print("==============================")
-
-            decision = input("keep? (y/n/q): ").lower().strip()
-            if decision == "y":
-                save_paper(
-                    paper,
-                    parent=seed_paper["paperId"],
-                    seed_doi=seed_doi,
-                    processed_papers=processed_papers,
-                )
-                accepted += 1
-            elif decision == "n":
-                save_discarded(
-                    paper,
-                    seed_doi=seed_doi,
-                    processed_papers=processed_papers,
-                )
-                dropped += 1
-            elif decision == "q":
-                stop_requested = True
-                break
-            else:
-                print("Decision invalida, se omite el paper.")
-
-        append_completed_seed_doi(seed_doi)
-        if stop_requested:
-            break
-
-    print("\nResumen metadata interactivo")
-    print(f"- Seed DOI file:          {seed_doi_file}")
-    print(f"- Seed DOI done file:     {completed_seed_doi_file}")
-    print(f"- Seed DOIs loaded:       {len(resolved_seed_dois)}")
-    print(f"- Seed DOIs pending:      {len(pending_seed_dois)}")
-    print(f"- Seed DOIs skipped:      {skipped_seed_errors}")
-    print(f"- Reviewed:               {reviewed}")
-    print(f"- Existing merged:        {existing}")
-    print(f"- Kept:                   {accepted}")
-    print(f"- Dropped:                {dropped}")
+def explore_with_gap_rag(seed_dois: list[str] | None = None) -> None:
+    explore_with_llm_selection(
+        seed_dois=seed_dois,
+        selection_mode="undercovered-topics",
+        summary_label="undercovered-topics",
+    )
 
 
 def run_nutrition_rag_exploration() -> None:
+    _run_llm_selection_exploration("broad-nutrition")
+
+
+def run_gap_rag_exploration() -> None:
+    _run_llm_selection_exploration("undercovered-topics")
+
+
+def _run_llm_selection_exploration(selection_mode: str) -> None:
+    normalized_mode = normalize_selection_mode(selection_mode)
     try:
+        sync_seed_doi_queue()
         resolved_seed_dois = load_seed_dois()
         completed_seed_dois = load_completed_seed_dois()
         pending_seed_dois = [seed_doi for seed_doi in resolved_seed_dois if seed_doi not in completed_seed_dois]
         if not pending_seed_dois:
-            print("\nSelection mode: nutrition-rag")
+            print(f"\nSelection mode: {normalized_mode}")
             print("Seed DOI file:", seed_doi_file)
             print("Seed DOI done file:", completed_seed_doi_file)
             print("Seed DOIs loaded:", len(resolved_seed_dois))
@@ -774,7 +777,7 @@ def run_nutrition_rag_exploration() -> None:
     except Exception as exc:
         raise SystemExit(f"Seed DOI inválido o no encontrado. Error: {exc}")
 
-    print("\nSelection mode:", "nutrition-rag")
+    print("\nSelection mode:", normalized_mode)
     print("Seed DOI file:", seed_doi_file)
     print("Seed DOI done file:", completed_seed_doi_file)
     print("Seed DOIs loaded:", len(resolved_seed_dois))
@@ -787,8 +790,14 @@ def run_nutrition_rag_exploration() -> None:
     print("Semantic Scholar rate limit:", "1 request/second")
     print()
 
-    explore_with_nutrition_rag(pending_seed_dois)
+    if normalized_mode == "broad-nutrition":
+        explore_with_nutrition_rag(pending_seed_dois)
+        return
+    if normalized_mode == "undercovered-topics":
+        explore_with_gap_rag(pending_seed_dois)
+        return
+    raise ValueError(f"Selection mode no soportado: {selection_mode}")
 
 
 if __name__ == "__main__":
-    run_interactive_exploration()
+    run_nutrition_rag_exploration()

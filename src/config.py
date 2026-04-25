@@ -15,10 +15,19 @@ DATA_STAGES_DIR = DATA_DIR / "stages"
 DATA_RUNTIME_DIR = DATA_DIR / "runtime"
 DATA_ARCHIVE_DIR = DATA_DIR / "archive"
 CSV_DIR = DATA_DIR / "csv"
-PRE_INGESTION_DIR = CSV_DIR / "pre_ingestion_topics"
+ANALYTICS_DIR = DATA_DIR / "analytics"
+CORPUS_INFO_DIR = DATA_DIR / "corpus_info"
+METADATA_RULES_DIR = CORPUS_INFO_DIR / "metadata_rules"
+PDF_RETRIEVAL_DIR = CORPUS_INFO_DIR / "pdf_retrieval"
+LEGACY_PDF_RETIREVAL_DIR = CORPUS_INFO_DIR / "pdf_retireval"
+PRE_INGESTION_DIR = CORPUS_INFO_DIR / "pre_ingestion_topics"
+PRE_INGESTION_EDITABLE_DIR = PRE_INGESTION_DIR
 PRE_INGESTION_PAPERS_CSV = PRE_INGESTION_DIR / "papers.csv"
 PRE_INGESTION_CANDIDATE_TERMS_CSV = PRE_INGESTION_DIR / "candidate_terms_top500.csv"
-PRE_INGESTION_DRAFT_TOPICS_YAML = PRE_INGESTION_DIR / "draft_topics.yaml"
+PRE_INGESTION_GENERATED_DRAFT_TOPICS_YAML = PRE_INGESTION_EDITABLE_DIR / "draft_topics.generated.yaml"
+PRE_INGESTION_TOPICS_YAML = PRE_INGESTION_EDITABLE_DIR / "topics.yaml"
+PRE_INGESTION_DRAFT_TOPICS_YAML = PRE_INGESTION_TOPICS_YAML
+PRE_INGESTION_BOOTSTRAP_RULES_YAML = PRE_INGESTION_EDITABLE_DIR / "bootstrap_rules.yaml"
 PRE_INGESTION_AUDIT_DIR = PRE_INGESTION_DIR / "audit"
 CONFIG_FILE = ROOT_DIR / "config.yaml"
 ENV_FILE = ROOT_DIR / ".env"
@@ -74,24 +83,28 @@ def get_pipeline_paths(config: dict[str, Any] | None = None) -> dict[str, Path]:
 
     metadata_dir = resolve_project_path(
         storage_cfg.get("papers_dir"),
-        DATA_DIR / "sources" / "metadata",
+        DATA_DIR / "stages" / "01_metadata",
     )
     discarded_dir = resolve_project_path(
         storage_cfg.get("discarded_dir"),
-        DATA_DIR / "sources" / "discarded_papers",
+        METADATA_RULES_DIR / "discarded_papers",
     )
     registry_dir = resolve_project_path(
         storage_cfg.get("registry_dir"),
-        DATA_DIR / "sources" / "registry",
+        METADATA_RULES_DIR / "registry",
     )
     raw_pdf_dir = resolve_project_path(
         storage_cfg.get("raw_pdf_dir"),
-        DATA_DIR / "stages" / "01_raw_pdf",
+        PDF_RETRIEVAL_DIR / "downloaded_pdfs",
+    )
+    unmatched_pdf_dir = resolve_project_path(
+        storage_cfg.get("unmatched_pdf_dir"),
+        PDF_RETRIEVAL_DIR / "unmatched_pdf",
     )
 
     docling_input_dir = resolve_project_path(
         docling_cfg.get("input_dir"),
-        DATA_DIR / "stages" / "02_input_pdfs",
+        DATA_DIR / "stages" / "02_normalized_pdfs",
     )
     docling_heuristics_dir = resolve_project_path(
         docling_cfg.get("output_dir"),
@@ -111,6 +124,7 @@ def get_pipeline_paths(config: dict[str, Any] | None = None) -> dict[str, Path]:
         "discarded_dir": discarded_dir,
         "registry_dir": registry_dir,
         "raw_pdf_dir": raw_pdf_dir,
+        "unmatched_pdf_dir": unmatched_pdf_dir,
         "docling_input_dir": docling_input_dir,
         "docling_heuristics_dir": docling_heuristics_dir,
         "claims_input_dir": claims_input_dir,
@@ -124,7 +138,7 @@ def get_testing_paths(config: dict[str, Any] | None = None) -> dict[str, Path]:
 
     testing_root_dir = resolve_project_path(
         testing_cfg.get("root_dir"),
-        DATA_DIR / "testing",
+        DATA_ARCHIVE_DIR / "testing_1",
     )
     testing_docling_dir = resolve_project_path(
         testing_cfg.get("docling_output_dir"),
@@ -147,7 +161,7 @@ def get_exploration_seed_doi_file(config: dict[str, Any] | None = None) -> Path:
     exploration_cfg = cfg.get("exploration") or {}
     return resolve_project_path(
         exploration_cfg.get("seed_doi_file"),
-        DATA_DIR / "sources" / "seed_dois.txt",
+        METADATA_RULES_DIR / "seed_dois.txt",
     )
 
 
@@ -156,7 +170,7 @@ def get_exploration_completed_seed_doi_file(config: dict[str, Any] | None = None
     exploration_cfg = cfg.get("exploration") or {}
     return resolve_project_path(
         exploration_cfg.get("completed_seed_doi_file"),
-        DATA_DIR / "sources" / "explored_seed_dois.txt",
+        METADATA_RULES_DIR / "explored_seed_dois.txt",
     )
 
 
@@ -174,10 +188,16 @@ def get_data_layout_dirs() -> tuple[Path, ...]:
         DATA_RUNTIME_DIR,
         DATA_ARCHIVE_DIR,
         CSV_DIR,
+        ANALYTICS_DIR,
+        CORPUS_INFO_DIR,
+        METADATA_RULES_DIR,
+        PDF_RETRIEVAL_DIR,
+        PRE_INGESTION_EDITABLE_DIR,
         PRE_INGESTION_DIR,
         PRE_INGESTION_AUDIT_DIR,
         METADATA_DIR,
         DOCLING_INPUT_DIR,
+        UNMATCHED_PDF_DIR,
         DOCLING_HEURISTICS_DIR,
         CLAIMS_OUTPUT_DIR,
         REGISTRY_DIR,
@@ -220,6 +240,7 @@ CLAIMS_INPUT_DIR = PATHS["claims_input_dir"]
 CLAIMS_OUTPUT_DIR = PATHS["claims_output_dir"]
 REGISTRY_DIR = PATHS["registry_dir"]
 RAW_PDF_DIR = PATHS["raw_pdf_dir"]
+UNMATCHED_PDF_DIR = PATHS["unmatched_pdf_dir"]
 EXPLORATION_SEED_DOI_FILE = get_exploration_seed_doi_file(CONFIG)
 EXPLORATION_COMPLETED_SEED_DOI_FILE = get_exploration_completed_seed_doi_file(CONFIG)
 TESTING_PATHS = get_testing_paths(CONFIG)
@@ -245,9 +266,15 @@ def display_path(path: Path) -> str:
         return str(resolved)
 
 
-def ensure_dirs() -> None:
-    for directory in get_data_layout_dirs():
-        directory.mkdir(parents=True, exist_ok=True)
+def resolve_available_raw_pdf_dir(raw_pdf_dir: Path | None = None) -> Path:
+    candidate = raw_pdf_dir or RAW_PDF_DIR
+    legacy_candidate = LEGACY_PDF_RETIREVAL_DIR / "downloaded_pdfs"
+
+    if candidate.exists() and any(candidate.glob("*.pdf")):
+        return candidate
+    if legacy_candidate.exists() and any(legacy_candidate.glob("*.pdf")):
+        return legacy_candidate
+    return candidate
 
 
 @lru_cache(maxsize=1)

@@ -159,7 +159,6 @@ def main() -> int:
     args = parser.parse_args()
 
     try:
-        ctx.ensure_dirs()
         session = create_session(SEMANTIC_API_KEY)
         output_path, status = write_metadata_for_doi(
             args.doi,

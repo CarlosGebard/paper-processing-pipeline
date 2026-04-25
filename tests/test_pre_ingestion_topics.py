@@ -14,6 +14,7 @@ from src.tools.pre_ingestion_topics import (
     build_topic_cooccurrence_rows,
     build_unmapped_term_rows,
     filter_papers_by_year,
+    load_bootstrap_topic_config,
     load_topics_dictionary,
     normalize_keyword,
     normalize_text,
@@ -36,15 +37,15 @@ def _load_script_module(module_name: str, relative_path: str):
 
 TOPIC_AUDIT_SCRIPT = _load_script_module(
     "pre_ingestion_topic_audit",
-    "ops/scripts/pre_ingestion_topic_audit.py",
+    "analytics/pre_ingestion_topic_audit.py",
 )
 TOPIC_BOOTSTRAP_SCRIPT = _load_script_module(
     "draft_topics_from_metadata_citations",
-    "ops/scripts/draft_topics_from_metadata_citations.py",
+    "analytics/draft_topics_from_metadata_citations.py",
 )
 PRE_INGESTION_PAPERS_CSV_SCRIPT = _load_script_module(
     "export_pre_ingestion_papers_csv",
-    "ops/scripts/reporting/export_pre_ingestion_papers_csv.py",
+    "analytics/reporting/export_pre_ingestion_papers_csv.py",
 )
 
 
@@ -226,15 +227,37 @@ def test_bootstrap_candidate_terms_prioritizes_specific_repeated_terms() -> None
     assert "clinical practice guidelines" not in terms
 
 
+def test_bootstrap_topic_config_loads_from_yaml(tmp_path: Path) -> None:
+    config_path = tmp_path / "bootstrap_rules.yaml"
+    config_path.write_text(
+        (
+            "excluded_terms:\n"
+            "  - generic phrase\n"
+            "topic_rules:\n"
+            "  microbiome:\n"
+            "    patterns:\n"
+            "      - gut microbiome\n"
+            "      - microbiota\n"
+        ),
+        encoding="utf-8",
+    )
+
+    config = load_bootstrap_topic_config(config_path)
+
+    assert config.excluded_terms == ("generic phrase",)
+    assert config.topic_rules[0].topic_name == "microbiome"
+    assert config.topic_rules[0].patterns == ("gut microbiome", "microbiota")
+
+
 def test_draft_topics_script_writes_ranked_candidate_csv(tmp_path: Path) -> None:
-    input_csv = tmp_path / "metadata_citations.csv"
+    input_csv = tmp_path / "metadata.csv"
     output_csv = tmp_path / "candidate_terms.csv"
     input_csv.write_text(
         (
-            "title,citation_count\n"
-            "\"Gut microbiota in obesity\",500\n"
-            "\"Gut microbiota and type 2 diabetes\",700\n"
-            "\"Mediterranean diet and cardiovascular disease\",900\n"
+            "doi,title,citation_count\n"
+            "10.1000/a,\"Gut microbiota in obesity\",500\n"
+            "10.1000/b,\"Gut microbiota and type 2 diabetes\",700\n"
+            "10.1000/c,\"Mediterranean diet and cardiovascular disease\",900\n"
         ),
         encoding="utf-8",
     )
@@ -266,7 +289,7 @@ def test_draft_topics_script_defaults_to_csv_workspace(monkeypatch) -> None:
     args = TOPIC_BOOTSTRAP_SCRIPT.parse_args()
 
     assert args.output_csv == TOPIC_BOOTSTRAP_SCRIPT.ctx.PRE_INGESTION_CANDIDATE_TERMS_CSV
-    assert args.output_yaml == TOPIC_BOOTSTRAP_SCRIPT.ctx.PRE_INGESTION_DRAFT_TOPICS_YAML
+    assert args.output_yaml == TOPIC_BOOTSTRAP_SCRIPT.ctx.PRE_INGESTION_GENERATED_DRAFT_TOPICS_YAML
 
 
 def test_candidate_term_rows_to_csv_serializes_examples() -> None:
@@ -312,6 +335,38 @@ def test_build_draft_topics_yaml_payload_groups_terms_into_topics() -> None:
     assert "vitamin_d" in payload["topics"]
     assert "cardiovascular_disease" in payload["topics"]
     assert "review_candidates" in payload
+
+
+def test_build_draft_topics_yaml_payload_uses_custom_bootstrap_rules(tmp_path: Path) -> None:
+    config_path = tmp_path / "bootstrap_rules.yaml"
+    config_path.write_text(
+        (
+            "excluded_terms: []\n"
+            "topic_rules:\n"
+            "  fiber_topic:\n"
+            "    patterns:\n"
+            "      - dietary fiber\n"
+            "      - fibre\n"
+        ),
+        encoding="utf-8",
+    )
+
+    rows = bootstrap_candidate_terms_from_citations(
+        [
+            PaperRecord(paper_id="p1", title="Dietary fiber and metabolic health", citation_count=100),
+            PaperRecord(paper_id="p2", title="Dietary fiber in adults", citation_count=80),
+        ],
+        min_doc_freq=1,
+        top_n=20,
+        bootstrap_config_path=config_path,
+    )
+
+    payload = build_draft_topics_yaml_payload(
+        rows,
+        bootstrap_config_path=config_path,
+    )
+
+    assert "fiber_topic" in payload["topics"]
 
 
 def test_read_metadata_rows_exports_canonical_pre_ingestion_fields(tmp_path: Path) -> None:

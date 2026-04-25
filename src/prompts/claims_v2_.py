@@ -40,7 +40,7 @@ Each claim must be:
 - health-related
 - atomic
 - self-contained
-- scoped to the reported population/subgroup/timepoint/comparison
+- scoped to the reported population, subgroup, timepoint, comparison
 Do not:
 - convert association into causation
 - convert within-group change into between-group superiority
@@ -69,7 +69,16 @@ Use Discussion only when it directly restates an empirical finding supported in 
 
 <STRUCTURE>
 Capture when explicit:
-population, condition, subgroup, intervention_or_exposure, comparator, arm, comparator_arm, outcome, dose, duration, timepoint, study_design, sample_size.
+population, subgroup, intervention_or_exposure, comparator, arm, outcome, units, baseline_value, followup_value, within_group_change, between_group_difference, dose, duration, timepoint, study_design, sample_size.
+
+Use:
+- population = main population to which the claim applies
+- subgroup = narrower analyzed subset of that population; otherwise null
+- comparator = explicit comparator, including another group, baseline/run-in, placebo, lower/higher category, or no exposure
+- arm = specific study arm/group from which a reported value or within-group change is taken; otherwise null
+- direction = use only when the outcome is explicitly reported as increasing, decreasing, unchanged, associated, or different
+
+Do not duplicate the same scope in both population and subgroup.
 
 Set comparison_type as:
 - "between_group" = explicit comparison across arms/groups/categories
@@ -112,6 +121,7 @@ For each claim:
 - keep it precise, restrained, and self-contained
 - preserve whether it is a between-group finding, within-group change, or association
 - mention a comparator only if explicitly reported
+- include enough scope to avoid overgeneralization
 </CLAIM_TEXT>
 
 <KEYWORDS>
@@ -120,7 +130,7 @@ Prioritize:
 - intervention/exposure
 - comparator or arm when relevant
 - outcome
-- population/subgroup/condition
+- population or subgroup
 - explicit abbreviations only if stated
 No sentences. No unstated concepts.
 </KEYWORDS>
@@ -138,40 +148,35 @@ Return JSON only as an array with this exact schema:
 
 [
   {
-    "claim_text": "string",
-    "claim_type": "empirical",
-    "claim_family": "primary_outcome | secondary_outcome | adherence_biomarker | safety | risk_association | other_empirical",
-    "support_section": "section title or mixed",
-    "population": "string or null",
-    "condition": "string or null",
-    "subgroup": "string or null",
-    "intervention_or_exposure": "string or null",
-    "comparator": "string or null",
-    "arm": "string or null",
-    "comparator_arm": "string or null",
-    "comparison_type": "between_group | within_group | association | null",
-    "outcome": "string or null",
-    "direction": "increase | decrease | no_effect | association | difference | null",
-    "units": "string or null",
-    "baseline_value": "string or null",
-    "followup_value": "string or null",
-    "within_group_change": "string or null",
-    "between_group_difference": "string or null",
-    "effect_size": "string or null",
-    "dose": "string or null",
-    "duration": "string or null",
-    "timepoint": "string or null",
-    "study_design": "string or null",
-    "sample_size": "string or null",
-    "keywords": ["string"],
-    "statistics": {
-      "p_value": "string or null",
-      "confidence_interval": "string or null",
-      "other": "string or null"
-    },
-    "evidence_span": "exact supporting sentence(s) or exact table/figure-related text copied verbatim from the provided content",
-    "confidence": 0.0
-  }
+"claim_text": "string",
+"claim_family": "primary_outcome | secondary_outcome | adherence_biomarker | safety | risk_association | other_empirical",
+"support_section": "section title or mixed",
+"population": "string or null",
+"subgroup": "string or null",
+"intervention_or_exposure": "string or null",
+"comparator": "string or null",
+"arm": "string or null",
+"comparison_type": "between_group | within_group | association | null",
+"outcome": "string or null",
+"direction": "increase | decrease | no_effect | association | difference | null",
+"units": "string or null",
+"baseline_value": "string or null",
+"followup_value": "string or null",
+"within_group_change": "string or null",
+"between_group_difference": "string or null",
+"dose": "string or null",
+"duration": "string or null",
+"timepoint": "string or null",
+"study_design": "string or null",
+"sample_size": "string or null",
+"keywords": ["string"],
+"statistics": {
+  "p_value": "string or null",
+  "confidence_interval": "string or null",
+  "other": "string or null"
+},
+"evidence_span": "exact supporting sentence(s) or exact table/figure-related text copied verbatim from the provided content",
+"confidence": 0.0  }
 ]
 </OUTPUT>
 
@@ -186,6 +191,7 @@ Before outputting each claim, verify:
 - correct claim_family
 - correct comparison_type
 - exact numerical fidelity preserved
+- population and subgroup are not redundant
 If any check fails, exclude the claim.
 </CHECK>
 
@@ -199,7 +205,6 @@ AVAILABLE_SECTIONS = {available_sections}
 [SECTIONS]
 {sections_text}
 """
-
 
 def build_claims_prompt(
     trace_text: str,

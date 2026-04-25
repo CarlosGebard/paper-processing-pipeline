@@ -13,6 +13,8 @@ from typing import Any
 from src import config as ctx
 from src.artifacts import build_base_name, normalize_doi, parse_base_name
 
+RAW_PROVENANCE_SUFFIX_RE = re.compile(r"__from-raw-pdf-\d{4}-\d{2}-\d{2}$", flags=re.IGNORECASE)
+
 
 def _normalize_text_for_match(value: str) -> str:
     lowered = value.lower()
@@ -23,10 +25,11 @@ def _normalize_text_for_match(value: str) -> str:
 
 
 def _extract_title_hint(value: str) -> str:
-    match = re.search(r"\s-\s\d{4}\s-\s(.+)$", value)
+    cleaned_value = RAW_PROVENANCE_SUFFIX_RE.sub("", value).strip()
+    match = re.search(r"\s-\s\d{4}\s-\s(.+)$", cleaned_value)
     if match:
         return match.group(1).strip()
-    return value.strip()
+    return cleaned_value
 
 
 def _iter_metadata_records(metadata_dir: Path) -> list[dict[str, str]]:
@@ -135,6 +138,9 @@ def _iter_bib_records(bib_file: Path | None) -> list[dict[str, str]]:
 
 
 def _default_relations_csv_from_metadata_dir(metadata_dir: Path) -> Path | None:
+    analytics_candidates = sorted(ctx.ANALYTICS_DIR.glob("doi_pdf_relations*.csv"))
+    if analytics_candidates:
+        return analytics_candidates[-1]
     csv_candidates = sorted(ctx.CSV_DIR.glob("doi_pdf_relations*.csv"))
     if csv_candidates:
         return csv_candidates[-1]
@@ -403,11 +409,14 @@ def sync_raw_pdfs_into_input(
     metadata_dir: Path,
     bib_file: Path | None = None,
     relations_csv: Path | None = None,
+    unmatched_dir: Path | None = None,
 ) -> tuple[int, int]:
     if not raw_pdf_dir.exists():
         return 0, 0
 
     input_dir.mkdir(parents=True, exist_ok=True)
+    if unmatched_dir is not None:
+        unmatched_dir.mkdir(parents=True, exist_ok=True)
     copied = 0
     skipped = 0
 
@@ -420,6 +429,43 @@ def sync_raw_pdfs_into_input(
 
         if not target_name:
             print(f"[RAW SKIP] {source_pdf.name}: no se pudo inferir doi (bib+metadata)")
+            if unmatched_dir is not None:
+                shutil.copy2(source_pdf, unmatched_dir / source_pdf.name)
+            skipped += 1
+            continue
+
+        target_path = input_dir / target_name
+        shutil.copy2(source_pdf, target_path)
+        copied += 1
+
+    return copied, skipped
+
+
+def sync_raw_pdfs_from_relations(
+    raw_pdf_dir: Path,
+    input_dir: Path,
+    relations_csv: Path,
+    unmatched_dir: Path | None = None,
+) -> tuple[int, int]:
+    if not raw_pdf_dir.exists():
+        return 0, 0
+    if not relations_csv.exists():
+        raise FileNotFoundError(f"No existe relations CSV: {relations_csv}")
+
+    input_dir.mkdir(parents=True, exist_ok=True)
+    if unmatched_dir is not None:
+        unmatched_dir.mkdir(parents=True, exist_ok=True)
+    copied = 0
+    skipped = 0
+    relation_records = _iter_relation_records(relations_csv)
+
+    for source_pdf in sorted(raw_pdf_dir.glob("*.pdf")):
+        target_name = resolve_pdf_target_name(source_pdf, [], [], relation_records)
+
+        if not target_name:
+            print(f"[RAW SKIP] {source_pdf.name}: no se pudo inferir doi desde doi_pdf_relations.csv")
+            if unmatched_dir is not None:
+                shutil.copy2(source_pdf, unmatched_dir / source_pdf.name)
             skipped += 1
             continue
 
@@ -432,7 +478,7 @@ def sync_raw_pdfs_into_input(
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Normaliza PDFs desde data/raw_pdf al formato trazable en data/input_pdfs"
+        description="Normaliza PDFs desde el workspace de descarga al formato DOI-first en normalized_pdfs"
     )
     parser.add_argument("--raw-dir", type=Path, required=True, help="Directorio fuente de PDFs crudos")
     parser.add_argument("--input-dir", type=Path, required=True, help="Directorio destino normalizado")
@@ -448,7 +494,7 @@ def main() -> None:
 
     if args.audit_only:
         summary = audit_raw_pdf_dir(args.raw_dir, args.metadata_dir, args.bib_file, args.relations_csv)
-        print("Auditoria raw_pdf -> input_pdfs")
+        print("Auditoria raw_pdf -> normalized_pdfs")
         print(f"- Total PDFs: {summary['total']}")
         print(f"- Ya DOI: {summary['already_doi']}")
         print(f"- Legacy: {summary['legacy']}")
@@ -457,7 +503,7 @@ def main() -> None:
         return
 
     copied, skipped = sync_raw_pdfs_into_input(args.raw_dir, args.input_dir, args.metadata_dir, args.bib_file, args.relations_csv)
-    print("Sincronizacion raw_pdf -> input_pdfs")
+    print("Sincronizacion raw_pdf -> normalized_pdfs")
     print(f"- Copiados: {copied}")
     print(f"- Omitidos: {skipped}")
 

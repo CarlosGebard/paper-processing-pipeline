@@ -5,7 +5,7 @@ from pathlib import Path
 
 from src import artifacts
 import src.tools.claims_extraction as claims_extraction
-from src.tools.bibliography import generate_bib
+from src.tools.bibliography import generate_bib, generate_bib_from_csv, resolve_output_bib
 from src.tools.claims_extraction import (
     AUTO_APPROVE_MAX_TOKENS,
     build_claims_preview,
@@ -15,10 +15,12 @@ from src.tools.claims_extraction import (
     parse_input_sections,
     run_claim_extraction_flow,
     run_claim_extraction_for_file,
+    validate_claims,
 )
 from src.tools.pdf_normalization import (
     _guess_base_name_from_stem,
     audit_raw_pdf_dir,
+    sync_raw_pdfs_from_relations,
     sync_raw_pdfs_into_input,
 )
 
@@ -46,6 +48,106 @@ def test_generate_bib_creates_entry_from_metadata_wrapper(tmp_path: Path) -> Non
     content = output_bib.read_text(encoding="utf-8")
     assert "@article{Lovelace2024" in content
     assert "doi = {10.1000/demo}" in content
+
+
+def test_generate_bib_from_missing_pdf_items_csv_creates_entries(tmp_path: Path) -> None:
+    input_csv = tmp_path / "missing_pdf_items.csv"
+    output_bib = tmp_path / "missing_pdf_items.bib"
+    input_csv.write_text(
+        (
+            "doi,collection_name,parent_item_id,parent_key,title,date,publication_title,status\n"
+            "10.1000/demo,Demo,123,ABC123,Example Paper,2004-00-00 2004,Journal of Testing,no linked PDF in Zotero\n"
+        ),
+        encoding="utf-8",
+    )
+
+    entries, skipped = generate_bib_from_csv(input_csv, output_bib)
+
+    assert entries == 1
+    assert skipped == 0
+    content = output_bib.read_text(encoding="utf-8")
+    assert "@article{ABC123" in content
+    assert "title = {Example Paper}" in content
+    assert "year = {2004}" in content
+    assert "journal = {Journal of Testing}" in content
+    assert "doi = {10.1000/demo}" in content
+
+
+def test_resolve_output_bib_defaults_to_csv_sibling_when_input_csv_is_used(tmp_path: Path) -> None:
+    input_csv = tmp_path / "missing_pdf_items.csv"
+
+    target = resolve_output_bib(None, input_csv)
+
+    assert target == tmp_path / "missing_pdf_items.bib"
+
+
+def test_validate_claims_accepts_claims_v2_schema() -> None:
+    claims = [
+        {
+            "claim_text": "In adults with overweight, the intervention group reduced fasting glucose versus placebo at 12 weeks.",
+            "claim_family": "primary_outcome",
+            "support_section": "Results",
+            "population": "adults with overweight",
+            "subgroup": None,
+            "intervention_or_exposure": "intervention group",
+            "comparator": "placebo",
+            "arm": "intervention group",
+            "comparison_type": "between_group",
+            "outcome": "fasting glucose",
+            "direction": "difference",
+            "units": "mg/dL",
+            "baseline_value": None,
+            "followup_value": None,
+            "within_group_change": None,
+            "between_group_difference": "-8 mg/dL",
+            "dose": None,
+            "duration": "12 weeks",
+            "timepoint": "12 weeks",
+            "study_design": "randomized trial",
+            "sample_size": "n=120",
+            "keywords": ["intervention group", "placebo", "fasting glucose", "adults with overweight"],
+            "statistics": {
+                "p_value": "p=0.03",
+                "confidence_interval": None,
+                "other": None,
+            },
+            "evidence_span": "Fasting glucose was 8 mg/dL lower in the intervention group versus placebo at 12 weeks (p=0.03).",
+            "confidence": 0.94,
+        }
+    ]
+
+    assert validate_claims(claims) == claims
+
+
+def test_validate_claims_rejects_old_claims_schema() -> None:
+    claims = [
+        {
+            "claim_text": "Old schema claim.",
+            "claim_type": "empirical",
+            "support_section": "Results",
+            "population": "adults",
+            "condition": None,
+            "intervention_or_exposure": "diet",
+            "comparator": None,
+            "outcome": "weight",
+            "direction": "decrease",
+            "effect_size": "-2 kg",
+            "dose": None,
+            "duration": "8 weeks",
+            "study_design": "trial",
+            "sample_size": "n=40",
+            "statistics": {"p_value": None, "confidence_interval": None, "other": None},
+            "evidence_span": "Participants lost 2 kg.",
+            "confidence": 0.9,
+        }
+    ]
+
+    try:
+        validate_claims(claims)
+    except ValueError as exc:
+        assert "missing keys" in str(exc)
+    else:
+        raise AssertionError("validate_claims accepted the deprecated schema")
 
 
 def test_sync_raw_pdfs_renames_pdf_from_metadata_match(tmp_path: Path) -> None:
@@ -157,6 +259,130 @@ def test_sync_raw_pdfs_uses_doi_pdf_relations_as_fallback(tmp_path: Path) -> Non
 
     assert copied == 1
     assert skipped == 0
+    assert (input_dir / "doi-10.1000-demo.pdf").exists()
+
+
+def test_sync_raw_pdfs_from_relations_uses_relations_as_primary_mapping(tmp_path: Path) -> None:
+    raw_dir = tmp_path / "raw"
+    input_dir = tmp_path / "input"
+    relations_csv = tmp_path / "doi_pdf_relations_demo.csv"
+
+    raw_dir.mkdir()
+    source_pdf = raw_dir / "Example Paper.pdf"
+    source_pdf.write_bytes(b"%PDF-1.4\n")
+
+    relations_csv.write_text(
+        (
+            "collection_name,parent_item_id,parent_key,doi,attachment_item_id,attachment_key,content_type,"
+            "attachment_path_raw,resolved_pdf_path\n"
+            "Demo,1,AAA,10.1000/demo,2,BBB,application/pdf,"
+            "\"storage:Example Paper.pdf\",\"storage/BBB/Example Paper.pdf\"\n"
+        ),
+        encoding="utf-8",
+    )
+
+    copied, skipped = sync_raw_pdfs_from_relations(raw_dir, input_dir, relations_csv)
+
+    assert copied == 1
+    assert skipped == 0
+    assert (input_dir / "doi-10.1000-demo.pdf").exists()
+
+
+def test_sync_raw_pdfs_from_relations_strips_legacy_from_raw_pdf_suffix(tmp_path: Path) -> None:
+    raw_dir = tmp_path / "raw"
+    input_dir = tmp_path / "input"
+    relations_csv = tmp_path / "doi_pdf_relations_demo.csv"
+
+    raw_dir.mkdir()
+    source_pdf = raw_dir / "Example Paper__from-raw-pdf-2026-03-21.pdf"
+    source_pdf.write_bytes(b"%PDF-1.4\n")
+
+    relations_csv.write_text(
+        (
+            "collection_name,parent_item_id,parent_key,doi,attachment_item_id,attachment_key,content_type,"
+            "attachment_path_raw,resolved_pdf_path\n"
+            "Demo,1,AAA,10.1000/demo,2,BBB,application/pdf,"
+            "\"storage:Example Paper.pdf\",\"storage/BBB/Example Paper.pdf\"\n"
+        ),
+        encoding="utf-8",
+    )
+
+    copied, skipped = sync_raw_pdfs_from_relations(raw_dir, input_dir, relations_csv)
+
+    assert copied == 1
+    assert skipped == 0
+    assert (input_dir / "doi-10.1000-demo.pdf").exists()
+
+
+def test_sync_raw_pdfs_from_relations_copies_unmatched_pdfs_to_separate_dir(tmp_path: Path) -> None:
+    raw_dir = tmp_path / "raw"
+    input_dir = tmp_path / "input"
+    unmatched_dir = tmp_path / "unmatched"
+    relations_csv = tmp_path / "doi_pdf_relations_demo.csv"
+
+    raw_dir.mkdir()
+    (raw_dir / "Unknown Paper.pdf").write_bytes(b"%PDF-1.4\n")
+    relations_csv.write_text(
+        (
+            "collection_name,parent_item_id,parent_key,doi,attachment_item_id,attachment_key,content_type,"
+            "attachment_path_raw,resolved_pdf_path\n"
+            "Demo,1,AAA,10.1000/demo,2,BBB,application/pdf,"
+            "\"storage:Example Paper.pdf\",\"storage/BBB/Example Paper.pdf\"\n"
+        ),
+        encoding="utf-8",
+    )
+
+    copied, skipped = sync_raw_pdfs_from_relations(
+        raw_dir,
+        input_dir,
+        relations_csv,
+        unmatched_dir=unmatched_dir,
+    )
+
+    assert copied == 0
+    assert skipped == 1
+    assert not (input_dir / "Unknown Paper.pdf").exists()
+    assert (unmatched_dir / "Unknown Paper.pdf").exists()
+
+
+def test_normalize_pdfs_flow_uses_legacy_raw_pdf_fallback(monkeypatch, tmp_path: Path, capsys) -> None:
+    import src.stages.pdfs as pdfs_stage
+
+    canonical_raw_dir = tmp_path / "pdf_retrieval" / "downloaded_pdfs"
+    legacy_raw_dir = tmp_path / "pdf_retireval" / "downloaded_pdfs"
+    input_dir = tmp_path / "input"
+    unmatched_dir = tmp_path / "unmatched"
+    relations_csv = tmp_path / "doi_pdf_relations.csv"
+
+    canonical_raw_dir.mkdir(parents=True)
+    legacy_raw_dir.mkdir(parents=True)
+    (legacy_raw_dir / "Example Paper.pdf").write_bytes(b"%PDF-1.4\n")
+    relations_csv.write_text(
+        (
+            "collection_name,parent_item_id,parent_key,doi,attachment_item_id,attachment_key,content_type,"
+            "attachment_path_raw,resolved_pdf_path\n"
+            "Demo,1,AAA,10.1000/demo,2,BBB,application/pdf,"
+            "\"storage:Example Paper.pdf\",\"storage/BBB/Example Paper.pdf\"\n"
+        ),
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(pdfs_stage.ctx, "RAW_PDF_DIR", canonical_raw_dir)
+    monkeypatch.setattr(pdfs_stage.ctx, "DOCLING_INPUT_DIR", input_dir)
+    monkeypatch.setattr(pdfs_stage.ctx, "UNMATCHED_PDF_DIR", unmatched_dir)
+    monkeypatch.setattr(pdfs_stage.ctx, "METADATA_DIR", tmp_path / "metadata")
+    monkeypatch.setattr(pdfs_stage.ctx, "LEGACY_PDF_RETIREVAL_DIR", tmp_path / "pdf_retireval")
+    monkeypatch.setattr(
+        pdfs_stage,
+        "_default_relations_csv_from_metadata_dir",
+        lambda _metadata_dir: relations_csv,
+    )
+
+    pdfs_stage.normalize_pdfs_flow()
+
+    captured = capsys.readouterr()
+    assert "raw_pdf_dir fallback" in captured.out
+    assert "unmatched_pdf_dir" in captured.out
     assert (input_dir / "doi-10.1000-demo.pdf").exists()
 
 

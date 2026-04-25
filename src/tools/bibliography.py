@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import csv
 import json
 import re
 from pathlib import Path
@@ -80,6 +81,16 @@ def unwrap_record(raw: dict[str, Any]) -> dict[str, Any]:
     return raw
 
 
+def extract_year(value: Any) -> str:
+    if value in (None, ""):
+        return ""
+
+    match = re.search(r"\b(19|20)\d{2}\b", str(value))
+    if not match:
+        return ""
+    return match.group(0)
+
+
 def json_to_bibtex_entry(data: dict[str, Any], used_keys: set[str]) -> str | None:
     doi = data.get("doi")
     if not doi:
@@ -87,20 +98,23 @@ def json_to_bibtex_entry(data: dict[str, Any], used_keys: set[str]) -> str | Non
 
     title = clean_text(str(data.get("title", "")))
     authors = [str(author) for author in (data.get("authors") or [])]
-    year = data.get("year", "")
+    year = extract_year(data.get("year", ""))
     paper_id = str(data.get("paperId") or data.get("document_id") or "")
+    journal = clean_text(str(data.get("publication_title") or ""))
 
     citekey = generate_citekey(authors, year, paper_id, used_keys)
     author_field = format_authors(authors)
-
-    return (
-        f"@article{{{citekey},\n"
-        f"  title = {{{title}}},\n"
-        f"  author = {{{author_field}}},\n"
-        f"  year = {{{year}}},\n"
-        f"  doi = {{{doi}}}\n"
-        "}"
-    )
+    lines = [
+        f"@article{{{citekey},",
+        f"  title = {{{title}}},",
+        f"  author = {{{author_field}}},",
+        f"  year = {{{year}}},",
+    ]
+    if journal:
+        lines.append(f"  journal = {{{journal}}},")
+    lines.append(f"  doi = {{{doi}}}")
+    lines.append("}")
+    return "\n".join(lines)
 
 
 def generate_bib(input_dir: Path, output_bib: Path) -> tuple[int, int]:
@@ -125,10 +139,53 @@ def generate_bib(input_dir: Path, output_bib: Path) -> tuple[int, int]:
     return len(entries), skipped
 
 
-def generate_bib_flow(output_file: Path | None = None) -> None:
-    ctx.ensure_dirs()
-    target = output_file or ctx.BIB_OUTPUT_FILE
-    entries, skipped = generate_bib(ctx.METADATA_DIR, target)
+def csv_row_to_record(row: dict[str, str]) -> dict[str, Any]:
+    return {
+        "doi": (row.get("doi") or "").strip(),
+        "title": (row.get("title") or "").strip(),
+        "year": extract_year(row.get("date") or ""),
+        "paperId": (row.get("parent_key") or row.get("parent_item_id") or "").strip(),
+        "publication_title": (row.get("publication_title") or "").strip(),
+        "authors": [],
+    }
+
+
+def generate_bib_from_csv(input_csv: Path, output_bib: Path) -> tuple[int, int]:
+    used_keys: set[str] = set()
+    entries: list[str] = []
+    skipped = 0
+
+    with input_csv.open(encoding="utf-8", newline="") as handle:
+        reader = csv.DictReader(handle)
+        for row in reader:
+            try:
+                entry = json_to_bibtex_entry(csv_row_to_record(row), used_keys)
+                if entry:
+                    entries.append(entry)
+                else:
+                    skipped += 1
+            except Exception:
+                skipped += 1
+
+    output_bib.parent.mkdir(parents=True, exist_ok=True)
+    output_bib.write_text("\n\n".join(entries), encoding="utf-8")
+    return len(entries), skipped
+
+
+def resolve_output_bib(output_file: Path | None, input_csv: Path | None) -> Path:
+    if output_file is not None:
+        return output_file
+    if input_csv is not None:
+        return input_csv.with_suffix(".bib")
+    return ctx.BIB_OUTPUT_FILE
+
+
+def generate_bib_flow(output_file: Path | None = None, input_csv: Path | None = None) -> None:
+    target = resolve_output_bib(output_file, input_csv)
+    if input_csv is not None:
+        entries, skipped = generate_bib_from_csv(input_csv, target)
+    else:
+        entries, skipped = generate_bib(ctx.METADATA_DIR, target)
 
     print("BibTeX generado")
     print(f"- Entradas: {entries}")
@@ -147,8 +204,17 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--output",
         type=Path,
-        default=DEFAULT_OUTPUT_BIB,
-        help=f"Archivo .bib de salida (default: {DEFAULT_OUTPUT_BIB})",
+        default=None,
+        help=(
+            "Archivo .bib de salida "
+            f"(default: {DEFAULT_OUTPUT_BIB} para metadata JSON, o un .bib vecino al CSV si se usa --input-csv)"
+        ),
+    )
+    parser.add_argument(
+        "--input-csv",
+        type=Path,
+        default=None,
+        help="CSV opcional como fuente BibTeX, por ejemplo data/analytics/missing_pdf_items.csv",
     )
     return parser
 
@@ -156,11 +222,15 @@ def build_parser() -> argparse.ArgumentParser:
 def main() -> None:
     parser = build_parser()
     args = parser.parse_args()
+    target = resolve_output_bib(args.output, args.input_csv)
 
-    entries, skipped = generate_bib(args.input_dir, args.output)
+    if args.input_csv:
+        entries, skipped = generate_bib_from_csv(args.input_csv, target)
+    else:
+        entries, skipped = generate_bib(args.input_dir, target)
     print(f"Generated {entries} BibTeX entries")
     print(f"Skipped {skipped} records")
-    print(f"Output -> {args.output}")
+    print(f"Output -> {target}")
 
 
 if __name__ == "__main__":

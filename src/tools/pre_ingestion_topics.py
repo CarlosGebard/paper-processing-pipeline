@@ -13,6 +13,8 @@ from typing import Any
 
 import yaml
 
+from src import config as ctx
+
 
 STOPWORDS = {
     "a",
@@ -41,58 +43,6 @@ STOPWORDS = {
     "with",
 }
 TOKEN_PATTERN = re.compile(r"[a-z0-9]+")
-GENERIC_BOOTSTRAP_TERMS = {
-    "analysis",
-    "burden disease",
-    "clinical practice",
-    "clinical practice guidelines",
-    "committee",
-    "countries",
-    "disease",
-    "disease study",
-    "guideline",
-    "guidelines",
-    "heart association",
-    "injury",
-    "management",
-    "meta analysis",
-    "medical care",
-    "practice guidelines",
-    "prevention",
-    "report",
-    "risk",
-    "review meta",
-    "review meta analysis",
-    "risk factors",
-    "scientific report",
-    "standards medical",
-    "study",
-    "systematic analysis",
-    "systematic review",
-    "systematic review meta",
-    "systematic review meta analysis",
-    "task force",
-    "update",
-    "version",
-}
-AUTO_TOPIC_RULES: tuple[tuple[str, tuple[str, ...]], ...] = (
-    ("vitamin_d", ("vitamin d", "25 ohd", "cholecalciferol")),
-    ("diabetes", ("type 2 diabetes", "diabetes mellitus", "diabetes")),
-    ("gut_microbiome", ("gut microbiota", "gut microbiome", "microbiota", "microbiome", "dysbiosis")),
-    ("obesity", ("obesity", "overweight obesity", "overweight", "body mass index", "bmi")),
-    ("cardiovascular_disease", ("cardiovascular disease", "heart disease", "cardiovascular risk", "atherosclerosis", "stroke")),
-    ("coronary_heart_disease", ("coronary heart disease", "coronary heart")),
-    ("mediterranean_diet", ("mediterranean diet", "olive oil")),
-    ("dietary_patterns", ("dietary patterns", "diet quality", "dietary factors", "dietary intake")),
-    ("fatty_acids_lipids", ("fatty acids", "blood cholesterol", "dyslipidemia", "dyslipidaemia", "lipid")),
-    ("metabolic_syndrome", ("metabolic syndrome", "insulin resistance")),
-    ("blood_pressure_hypertension", ("blood pressure", "hypertension", "high blood pressure")),
-    ("weight_loss", ("weight loss", "body weight")),
-    ("physical_activity", ("physical activity", "exercise")),
-    ("randomized_trials", ("randomized controlled trial", "randomized controlled", "controlled trial", "placebo controlled")),
-)
-
-
 @dataclass(frozen=True)
 class PaperRecord:
     paper_id: str
@@ -155,6 +105,18 @@ class DraftTopicGroup:
     topic_name: str
     keywords: tuple[str, ...]
     matched_terms: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class BootstrapTopicRule:
+    topic_name: str
+    patterns: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class BootstrapTopicConfig:
+    excluded_terms: tuple[str, ...]
+    topic_rules: tuple[BootstrapTopicRule, ...]
 
 
 def normalize_text(value: str) -> str:
@@ -331,6 +293,65 @@ def _dedupe_topic_keywords(keywords: list[TopicKeyword]) -> list[TopicKeyword]:
 
 def normalize_keyword(keyword: str) -> str:
     return " ".join(tokenize_title(keyword))
+
+
+def load_bootstrap_topic_config(
+    config_path: Path | None = None,
+) -> BootstrapTopicConfig:
+    if config_path is not None:
+        input_path = config_path
+    else:
+        from analytics import paths as analytics_ctx
+
+        input_path = (
+            analytics_ctx.PRE_INGESTION_BOOTSTRAP_RULES_YAML
+            if analytics_ctx.PRE_INGESTION_BOOTSTRAP_RULES_YAML.exists()
+            else ctx.PRE_INGESTION_BOOTSTRAP_RULES_YAML
+        )
+    raw = _load_yaml_or_json(input_path)
+    if not isinstance(raw, dict):
+        raise ValueError("El archivo bootstrap topics debe ser un objeto YAML/JSON.")
+
+    excluded_payload = raw.get("excluded_terms") or []
+    if not isinstance(excluded_payload, list):
+        raise ValueError("El archivo bootstrap topics debe incluir 'excluded_terms' como lista.")
+    excluded_terms = tuple(
+        normalize_text(term)
+        for term in excluded_payload
+        if isinstance(term, str) and normalize_text(term)
+    )
+
+    rules_payload = raw.get("topic_rules")
+    if not isinstance(rules_payload, dict) or not rules_payload:
+        raise ValueError("El archivo bootstrap topics debe incluir un bloque 'topic_rules' no vacio.")
+
+    topic_rules: list[BootstrapTopicRule] = []
+    for topic_name, topic_config in rules_payload.items():
+        if not isinstance(topic_name, str) or not topic_name.strip():
+            raise ValueError("Cada topic rule debe tener un nombre string no vacio.")
+        if not isinstance(topic_config, dict):
+            raise ValueError(f"La topic rule {topic_name!r} debe ser un objeto.")
+        patterns_payload = topic_config.get("patterns")
+        if not isinstance(patterns_payload, list) or not patterns_payload:
+            raise ValueError(f"La topic rule {topic_name!r} debe tener una lista 'patterns' no vacia.")
+        normalized_patterns = tuple(
+            normalize_text(pattern)
+            for pattern in patterns_payload
+            if isinstance(pattern, str) and normalize_text(pattern)
+        )
+        if not normalized_patterns:
+            raise ValueError(f"La topic rule {topic_name!r} no tiene patterns validos.")
+        topic_rules.append(
+            BootstrapTopicRule(
+                topic_name=topic_name.strip(),
+                patterns=normalized_patterns,
+            )
+        )
+
+    return BootstrapTopicConfig(
+        excluded_terms=tuple(dict.fromkeys(excluded_terms)),
+        topic_rules=tuple(topic_rules),
+    )
 
 
 def filter_papers_by_year(
@@ -559,8 +580,10 @@ def bootstrap_candidate_terms_from_citations(
     top_n: int | None = None,
     excluded_terms: set[str] | None = None,
     max_examples_per_term: int = 3,
+    bootstrap_config_path: Path | None = None,
 ) -> list[CandidateTermStats]:
-    excluded = set(GENERIC_BOOTSTRAP_TERMS)
+    bootstrap_config = load_bootstrap_topic_config(bootstrap_config_path)
+    excluded = set(bootstrap_config.excluded_terms)
     if excluded_terms:
         excluded.update(normalize_text(term) for term in excluded_terms if term.strip())
 
@@ -646,22 +669,24 @@ def build_draft_topics_yaml_payload(
     *,
     min_keywords_per_topic: int = 2,
     max_keywords_per_topic: int = 10,
+    bootstrap_config_path: Path | None = None,
 ) -> dict[str, Any]:
+    bootstrap_config = load_bootstrap_topic_config(bootstrap_config_path)
     remaining_terms = {row.term for row in candidate_rows}
     groups: list[DraftTopicGroup] = []
 
-    for topic_name, patterns in AUTO_TOPIC_RULES:
+    for rule in bootstrap_config.topic_rules:
         matched = sorted(
             term
             for term in remaining_terms
-            if any(pattern in term for pattern in patterns)
+            if any(pattern in term for pattern in rule.patterns)
         )
         if len(matched) < min_keywords_per_topic:
             continue
         keywords = tuple(matched[:max_keywords_per_topic])
         groups.append(
             DraftTopicGroup(
-                topic_name=topic_name,
+                topic_name=rule.topic_name,
                 keywords=keywords,
                 matched_terms=tuple(matched),
             )

@@ -17,7 +17,6 @@ def run_llm_to_claim_flow(
     auto_approve_max_tokens: int | None = None,
     skip_existing: bool = False,
 ) -> None:
-    ctx.ensure_dirs()
     claims_flow = ctx.resolve_claims_flow()
 
     source = (input_path or ctx.CLAIMS_INPUT_DIR).expanduser().resolve()

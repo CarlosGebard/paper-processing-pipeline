@@ -43,6 +43,9 @@ def extract_doi_slug_from_base_name(base_name: str | None) -> str | None:
 
 
 def find_default_relations_csv() -> Path | None:
+    candidates = sorted(ctx.ANALYTICS_DIR.glob("doi_pdf_relations*.csv"))
+    if candidates:
+        return candidates[-1]
     candidates = sorted(ctx.CSV_DIR.glob("doi_pdf_relations*.csv"))
     if candidates:
         return candidates[-1]
