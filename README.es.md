@@ -1,8 +1,8 @@
 # Paper Processing Pipeline ([English](README.md))
 
-Pipeline para convertir papers científicos en artifacts estructurados y salidas de claims.
+Pipeline para convertir papers científicos en metadata estructurada, artifacts de documento y salidas de claims.
 
-El repositorio se organiza alrededor de flujos por línea de comandos. La CLI principal cubre la ejecución operativa del pipeline, y la CLI de analytics agrupa exports, reportes y análisis de pre-ingestión.
+El repositorio se organiza alrededor de flujos por línea de comandos para la ejecución operativa del pipeline, desde el descubrimiento de papers hasta Docling, heurísticas y extracción de claims.
 
 ## Qué Hace
 
@@ -139,62 +139,6 @@ Flags más útiles:
 - `--auto-approve-under-7000-tokens`: auto procesa inputs pequeños
 - `--skip-existing`: salta outputs de claims ya existentes
 
-## Analytics CLI
-
-Entry point:
-
-```bash
-python analytics/cli.py
-```
-
-### `metadata export-csv`
-
-Exporta `metadata.csv`.
-
-```bash
-python analytics/cli.py metadata export-csv
-```
-
-### `pre-ingestion refresh-inputs`
-
-Regenera `papers.csv` y `metadata.csv`.
-
-```bash
-python analytics/cli.py pre-ingestion refresh-inputs
-```
-
-### `pre-ingestion draft-topics`
-
-Genera términos candidatos y un YAML draft desde `metadata.csv`.
-
-```bash
-python analytics/cli.py pre-ingestion draft-topics
-```
-
-### `pre-ingestion audit`
-
-Audita cobertura temática con un diccionario controlado de topics.
-
-```bash
-python analytics/cli.py pre-ingestion audit --input analytics/data/pre_ingestion_topics/papers.csv --topics analytics/data/pre_ingestion_topics/topics.yaml
-```
-
-### `pre-ingestion rebuild`
-
-Ejecuta refresh, draft-topics y audit en una sola pasada.
-
-```bash
-python analytics/cli.py pre-ingestion rebuild
-```
-
-### `report conversion-rates`
-
-Exporta conversion rates del pipeline entre metadata, PDFs, heuristics y claims.
-
-```bash
-python analytics/cli.py report conversion-rates
-```
-
 ## Layout De Datos
 
 Rutas principales:
@@ -204,9 +148,6 @@ Rutas principales:
 - normalized PDFs: `data/stages/02_normalized_pdfs`
 - Docling + heuristics: `data/stages/03_docling_heuristics`
 - claims: `data/stages/04_claims`
-- exports analytics: `analytics/data/csv`
-- reportes analytics: `analytics/data/reports`
-- workspace pre-ingestion: `analytics/data/pre_ingestion_topics`
 - testing: `data/archive/testing_1`
 
 Las rutas runtime se resuelven desde:
@@ -262,12 +203,9 @@ Comandos útiles:
 python ops/scripts/cli.py --help
 python ops/scripts/cli.py metadata --help
 python ops/scripts/cli.py claims --help
-python analytics/cli.py --help
 python -m pytest tests -q
 ```
 
 ## Notas
 
-- La main CLI es para correr el pipeline.
-- `analytics/` ahora es dueño de sus outputs bajo `analytics/data/`.
 - El pipeline preserva trazabilidad con nombres DOI-first y artifacts por etapa.

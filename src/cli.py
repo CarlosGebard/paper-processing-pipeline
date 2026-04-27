@@ -75,8 +75,11 @@ def cmd_pdfs_normalize(_args: argparse.Namespace) -> None:
     normalize_pdfs_flow()
 
 
-def cmd_pipeline_run(_args: argparse.Namespace) -> None:
-    run_pipeline_flow()
+def cmd_pipeline_run(args: argparse.Namespace) -> None:
+    run_pipeline_flow(
+        runners=args.runners,
+        pdf_path=_optional_resolved(args.pdf),
+    )
 
 
 def cmd_pipeline_single_paper(args: argparse.Namespace) -> None:
@@ -246,6 +249,18 @@ def _add_pipeline_group(subparsers: argparse._SubParsersAction[argparse.Argument
     pipeline_run_parser = pipeline_subparsers.add_parser(
         "run",
         help=f"Ejecuta docling + heuristics en {ctx.display_path(ctx.DOCLING_HEURISTICS_DIR)}",
+    )
+    pipeline_run_parser.add_argument(
+        "--runners",
+        type=int,
+        default=1,
+        help="Cantidad de subprocess runners para procesar PDFs en paralelo",
+    )
+    pipeline_run_parser.add_argument(
+        "--pdf",
+        type=Path,
+        default=None,
+        help=argparse.SUPPRESS,
     )
     pipeline_run_parser.set_defaults(handler=cmd_pipeline_run)
 

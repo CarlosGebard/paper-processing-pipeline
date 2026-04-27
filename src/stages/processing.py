@@ -1,15 +1,19 @@
 from __future__ import annotations
 
+import subprocess
+import sys
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
 from src import config as ctx
 from ..artifacts import (
-    artifact_paths_for_base_name,
     build_base_name,
     parse_document_from_pdf_name,
     refresh_registry_record,
 )
 from .pdfs import list_pdf_candidates
+
+PIPELINE_RUN_SUBPROCESS_TIMEOUT_SECONDS = 1800
 
 
 def resolve_pdf_for_doi(doi: str, input_dir: Path | None = None) -> Path:
@@ -33,61 +37,138 @@ def resolve_pdf_for_doi(doi: str, input_dir: Path | None = None) -> Path:
     )
 
 
-def run_pipeline_flow() -> None:
+def run_pipeline_one_pdf(pdf_path: Path) -> dict[str, Path]:
+    resolved_pdf_path = pdf_path.expanduser().resolve()
+    document_id, doi, base_name = parse_document_from_pdf_name(resolved_pdf_path)
+    record = refresh_registry_record(document_id, doi, base_name)
+    stage_status = record.get("stage_status", {})
+
+    if stage_status.get("completed"):
+        print(f"[SKIP COMPLETE] {resolved_pdf_path.name}")
+        return {}
+
+    if stage_status.get("heuristics"):
+        print(f"[SKIP HEURISTICS] {resolved_pdf_path.name}: ya existe salida heuristics")
+        return {}
+
+    runner = ctx.resolve_docling_v2_pipeline_runner()
+    result = runner(
+        input_pdf=resolved_pdf_path,
+        output_root_dir=ctx.DOCLING_HEURISTICS_DIR,
+        metadata_dir=ctx.METADATA_DIR,
+        dotenv_path=ctx.ROOT_DIR / ".env",
+        document_id=document_id,
+        doi=doi,
+        base_name=base_name,
+    )
+    output_dir = Path(result["output_dir"])
+    docling_json = Path(result["json_path"])
+    filtered_json = Path(result["filtered_json_path"])
+    final_json = Path(result["final_json_path"])
+    refresh_registry_record(document_id, doi, base_name)
+    print(f"[OK] {resolved_pdf_path.name}")
+    print(f"  - Output dir:    {ctx.display_path(output_dir)}")
+    print(f"  - Docling JSON:  {ctx.display_path(docling_json)}")
+    print(f"  - Filtered JSON: {ctx.display_path(filtered_json)}")
+    print(f"  - Final JSON:    {ctx.display_path(final_json)}")
+    return {
+        "output_dir": output_dir,
+        "json_path": docling_json,
+        "filtered_json_path": filtered_json,
+        "final_json_path": final_json,
+    }
+
+
+def _run_pipeline_pdf_subprocess(pdf_path: Path) -> tuple[str, bool, str]:
+    cmd = [
+        sys.executable,
+        str(ctx.ROOT_DIR / "ops" / "scripts" / "cli.py"),
+        "pipeline",
+        "run",
+        "--runners",
+        "1",
+        "--pdf",
+        str(pdf_path),
+    ]
+    result = subprocess.run(
+        cmd,
+        cwd=ctx.ROOT_DIR,
+        check=False,
+        capture_output=True,
+        text=True,
+        timeout=PIPELINE_RUN_SUBPROCESS_TIMEOUT_SECONDS,
+    )
+    output = result.stdout.strip() if result.returncode == 0 else result.stderr.strip()
+    truncated_output = output[-3000:] if output else ""
+    return (pdf_path.name, result.returncode == 0, truncated_output)
+
+
+def run_pipeline_flow(runners: int = 1, pdf_path: Path | None = None) -> None:
+    if runners < 1:
+        raise ValueError("--runners debe ser >= 1")
+
+    if pdf_path is not None:
+        run_pipeline_one_pdf(pdf_path)
+        return
+
     pdfs = list_pdf_candidates()
     if not pdfs:
         print(f"No hay PDFs en {ctx.display_path(ctx.DOCLING_INPUT_DIR)}.")
         return
 
-    processed_docling = 0
-    processed_heuristics = 0
+    pending: list[Path] = []
     skipped_complete = 0
     skipped_existing_heuristics = 0
-    failed = 0
 
     for pdf_path in pdfs:
-        try:
-            document_id, doi, base_name = parse_document_from_pdf_name(pdf_path)
-            record = refresh_registry_record(document_id, doi, base_name)
-            stage_status = record.get("stage_status", {})
+        document_id, doi, base_name = parse_document_from_pdf_name(pdf_path)
+        record = refresh_registry_record(document_id, doi, base_name)
+        stage_status = record.get("stage_status", {})
 
-            if stage_status.get("completed"):
-                print(f"[SKIP COMPLETE] {pdf_path.name}")
-                skipped_complete += 1
+        if stage_status.get("completed"):
+            print(f"[SKIP COMPLETE] {pdf_path.name}")
+            skipped_complete += 1
+            continue
+
+        if stage_status.get("heuristics"):
+            print(f"[SKIP HEURISTICS] {pdf_path.name}: ya existe salida heuristics")
+            skipped_existing_heuristics += 1
+            continue
+
+        pending.append(pdf_path)
+
+    if not pending:
+        print("No hay PDFs pendientes para docling + heuristics.")
+        print("\nResumen pipeline")
+        print("- Docling procesados:      0")
+        print("- Heuristics procesados:   0")
+        print(f"- Saltados completos:      {skipped_complete}")
+        print(f"- Saltados por heuristics: {skipped_existing_heuristics}")
+        print("- Fallidos:                0")
+        return
+
+    print(f"Pendientes: {len(pending)} PDFs")
+
+    processed_docling = 0
+    processed_heuristics = 0
+    failed = 0
+
+    with ThreadPoolExecutor(max_workers=runners) as executor:
+        futures = [executor.submit(_run_pipeline_pdf_subprocess, candidate) for candidate in pending]
+        for future in as_completed(futures):
+            name, ok, output = future.result()
+            if ok:
+                processed_docling += 1
+                processed_heuristics += 1
+                print(f"[OK SUBPROCESS] {name}")
+                if output:
+                    print(output)
                 continue
 
-            artifact_paths = artifact_paths_for_base_name(base_name)
-
-            if stage_status.get("heuristics"):
-                print(f"[SKIP HEURISTICS] {pdf_path.name}: ya existe salida heuristics")
-                skipped_existing_heuristics += 1
-                continue
-
-            runner = ctx.resolve_docling_v2_pipeline_runner()
-            result = runner(
-                input_pdf=pdf_path,
-                output_root_dir=ctx.DOCLING_HEURISTICS_DIR,
-                metadata_dir=ctx.METADATA_DIR,
-                dotenv_path=ctx.ROOT_DIR / ".env",
-                document_id=document_id,
-                doi=doi,
-                base_name=base_name,
-            )
-            output_dir = Path(result["output_dir"])
-            docling_json = Path(result["json_path"])
-            filtered_json = Path(result["filtered_json_path"])
-            final_json = Path(result["final_json_path"])
-            processed_docling += 1
-            refresh_registry_record(document_id, doi, base_name)
-            print(f"[OK] {pdf_path.name}")
-            print(f"  - Output dir:    {ctx.display_path(output_dir)}")
-            print(f"  - Docling JSON:  {ctx.display_path(docling_json)}")
-            print(f"  - Filtered JSON: {ctx.display_path(filtered_json)}")
-            print(f"  - Final JSON:    {ctx.display_path(final_json)}")
-            processed_heuristics += 1
-        except Exception as exc:
-            print(f"[SKIP] {pdf_path.name}: {exc}")
             failed += 1
+            print(f"[FAIL] {name}")
+            if output:
+                print(output)
 
     print("\nResumen pipeline")
     print(f"- Docling procesados:      {processed_docling}")

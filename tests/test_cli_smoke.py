@@ -96,6 +96,13 @@ def test_pipeline_single_paper_help_smoke() -> None:
     assert "data/archive/testing_1" in result.stdout
 
 
+def test_pipeline_run_help_smoke_mentions_runners_flag() -> None:
+    result = run_cli("pipeline", "run", "--help")
+    assert result.returncode == 0
+    assert "--runners" in result.stdout
+    assert "--pdf" not in result.stdout
+
+
 def test_claims_extract_help_smoke() -> None:
     result = run_cli("claims", "extract", "--help")
     assert result.returncode == 0
@@ -191,5 +198,26 @@ def test_main_routes_claims_extract(monkeypatch, tmp_path: Path) -> None:
             "pattern": "*/*.final.json",
             "auto_approve_max_tokens": cli.ctx.LLM_CLAIMS_AUTO_APPROVE_MAX_TOKENS,
             "skip_existing": True,
+        }
+    ]
+
+
+def test_main_routes_pipeline_run_with_runners(monkeypatch, tmp_path: Path) -> None:
+    called: list[dict[str, object]] = []
+    pdf_path = tmp_path / "paper.pdf"
+
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["cli.py", "pipeline", "run", "--runners", "3", "--pdf", str(pdf_path)],
+    )
+    monkeypatch.setattr(cli, "run_pipeline_flow", lambda **kwargs: called.append(kwargs))
+
+    cli.main()
+
+    assert called == [
+        {
+            "runners": 3,
+            "pdf_path": pdf_path.resolve(),
         }
     ]

@@ -1,8 +1,8 @@
 # Paper Processing Pipeline ([Español](README.es.md))
 
-Pipeline for turning scientific papers into structured artifacts and claim-level outputs.
+Pipeline for turning scientific papers into structured metadata, document artifacts, and claim-level outputs.
 
-The repository is organized around command-line workflows. The main CLI covers the operational pipeline, and the analytics CLI groups exports, reports, and pre-ingestion analysis.
+The repository is organized around command-line workflows for the operational pipeline, from paper discovery through Docling, heuristics, and claims extraction.
 
 ## What It Does
 
@@ -139,62 +139,6 @@ Useful flags:
 - `--auto-approve-under-7000-tokens`: auto-process smaller inputs
 - `--skip-existing`: skip existing claim outputs
 
-## Analytics CLI
-
-Entry point:
-
-```bash
-python analytics/cli.py
-```
-
-### `metadata export-csv`
-
-Exports `metadata.csv`.
-
-```bash
-python analytics/cli.py metadata export-csv
-```
-
-### `pre-ingestion refresh-inputs`
-
-Regenerates `papers.csv` and `metadata.csv`.
-
-```bash
-python analytics/cli.py pre-ingestion refresh-inputs
-```
-
-### `pre-ingestion draft-topics`
-
-Generates candidate terms and a draft YAML file from `metadata.csv`.
-
-```bash
-python analytics/cli.py pre-ingestion draft-topics
-```
-
-### `pre-ingestion audit`
-
-Audits thematic coverage with a controlled topic dictionary.
-
-```bash
-python analytics/cli.py pre-ingestion audit --input analytics/data/pre_ingestion_topics/papers.csv --topics analytics/data/pre_ingestion_topics/topics.yaml
-```
-
-### `pre-ingestion rebuild`
-
-Runs refresh, draft-topics, and audit in one pass.
-
-```bash
-python analytics/cli.py pre-ingestion rebuild
-```
-
-### `report conversion-rates`
-
-Exports pipeline conversion rates across metadata, PDFs, heuristics, and claims.
-
-```bash
-python analytics/cli.py report conversion-rates
-```
-
 ## Data Layout
 
 Main paths:
@@ -204,9 +148,6 @@ Main paths:
 - normalized PDFs: `data/stages/02_normalized_pdfs`
 - Docling + heuristics: `data/stages/03_docling_heuristics`
 - claims: `data/stages/04_claims`
-- analytics exports: `analytics/data/csv`
-- analytics reports: `analytics/data/reports`
-- pre-ingestion workspace: `analytics/data/pre_ingestion_topics`
 - testing: `data/archive/testing_1`
 
 Runtime paths are resolved from:
@@ -262,12 +203,9 @@ Useful commands:
 python ops/scripts/cli.py --help
 python ops/scripts/cli.py metadata --help
 python ops/scripts/cli.py claims --help
-python analytics/cli.py --help
 python -m pytest tests -q
 ```
 
 ## Notes
 
-- The main CLI is for running the pipeline.
-- `analytics/` owns its own outputs under `analytics/data/`.
 - The pipeline preserves traceability through DOI-first names and stage-specific artifacts.
