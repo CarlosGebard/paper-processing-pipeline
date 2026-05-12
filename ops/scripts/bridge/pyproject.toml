@@ -1,0 +1,16 @@
+[project]
+name = "victus-ingest-bridge"
+version = "0.1.0"
+description = "Reusable Victus ingest bridge CLI and core"
+requires-python = ">=3.12"
+dependencies = [
+  "psycopg[binary]>=3.2,<4",
+]
+
+[project.scripts]
+victus-bridge = "victus_ingest_bridge.cli:main"
+victus-ingest = "victus_ingest_bridge.cli:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"

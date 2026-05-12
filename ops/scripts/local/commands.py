@@ -6,7 +6,7 @@ import sys
 from pathlib import Path
 
 from src import config as ctx
-from .stages import (
+from src.stages import (
     generate_bib_flow,
     normalize_pdfs_flow,
     run_llm_to_claim_flow,
@@ -15,10 +15,16 @@ from .stages import (
     run_single_paper_testing_flow,
 )
 
+BRIDGE_DIR = ctx.ROOT_DIR / "ops" / "scripts" / "bridge"
+if str(BRIDGE_DIR) not in sys.path:
+    sys.path.insert(0, str(BRIDGE_DIR))
+
+from victus_ingest_bridge import cli as bridge_cli
+
 
 CLI_DESCRIPTION = (
     "CLI profesional para el pipeline de papers. "
-    "Organizada por dominios: metadata, bib, pdfs, pipeline, claims y data-layout."
+    "Organizada por dominios: metadata, bib, pdfs, pipeline, claims, bridge y data-layout."
 )
 
 
@@ -343,6 +349,18 @@ def _add_data_layout_group(subparsers: argparse._SubParsersAction[argparse.Argum
     data_layout_create_parser.set_defaults(handler=cmd_data_layout_create)
 
 
+def _add_bridge_group(subparsers: argparse._SubParsersAction[argparse.ArgumentParser]) -> None:
+    bridge_parser = subparsers.add_parser(
+        "bridge",
+        help="Comunicacion con registry, storage y eventos Victus",
+        description=(
+            "Comandos de integracion para registrar PDFs, publicar artifacts/eventos, "
+            "marcar stages y consultar estado en la infraestructura Victus."
+        ),
+    )
+    bridge_cli.configure_parser(bridge_parser)
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=CLI_DESCRIPTION)
     subparsers = parser.add_subparsers(dest="command")
@@ -352,6 +370,7 @@ def build_parser() -> argparse.ArgumentParser:
     _add_pdfs_group(subparsers)
     _add_pipeline_group(subparsers)
     _add_claims_group(subparsers)
+    _add_bridge_group(subparsers)
     _add_data_layout_group(subparsers)
 
     return parser

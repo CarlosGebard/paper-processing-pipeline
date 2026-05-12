@@ -4,7 +4,8 @@ import subprocess
 import sys
 from pathlib import Path
 
-import src.cli as cli
+from ops.scripts.local import commands as cli
+from victus_ingest_bridge import cli as bridge_cli
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -12,7 +13,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 def run_cli(*args: str) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
-        [sys.executable, "ops/scripts/cli.py", *args],
+        [sys.executable, "ops/scripts/local/cli.py", *args],
         cwd=ROOT,
         capture_output=True,
         text=True,
@@ -26,6 +27,7 @@ def test_main_help_smoke_lists_cli_taxonomy() -> None:
     assert "CLI profesional" in result.stdout
     assert "metadata" in result.stdout
     assert "pipeline" in result.stdout
+    assert "bridge" in result.stdout
     assert "data-layout" in result.stdout
     assert "pre-ingestion" not in result.stdout
     assert "report" not in result.stdout
@@ -109,6 +111,31 @@ def test_claims_extract_help_smoke() -> None:
     assert "--max-claims" in result.stdout
     assert "--auto-approve-under-7000-tokens" in result.stdout
     assert "--skip-existing" in result.stdout
+
+
+def test_bridge_help_smoke_lists_subcommands() -> None:
+    result = run_cli("bridge", "--help")
+    assert result.returncode == 0
+    assert "ingest-pdf" in result.stdout
+    assert "mark-artifact-done" in result.stdout
+    assert "publish-event" in result.stdout
+    assert "stage-start" in result.stdout
+    assert "stage-done" in result.stdout
+    assert "publish-error" in result.stdout
+    assert "status" in result.stdout
+
+
+def test_bridge_ingest_pdf_help_smoke() -> None:
+    result = run_cli("bridge", "ingest-pdf", "--help")
+    assert result.returncode == 0
+    assert "--doi" in result.stdout
+    assert "path" in result.stdout
+
+
+def test_bridge_status_help_smoke() -> None:
+    result = run_cli("bridge", "status", "--help")
+    assert result.returncode == 0
+    assert "paper_id" in result.stdout
 
 
 def test_data_layout_create_help_smoke() -> None:
@@ -200,6 +227,25 @@ def test_main_routes_claims_extract(monkeypatch, tmp_path: Path) -> None:
             "skip_existing": True,
         }
     ]
+
+
+def test_main_routes_bridge_status(monkeypatch, capsys) -> None:
+    class FakeBridge:
+        def __init__(self, config: object):
+            self.config = config
+
+        def status(self, paper_id: str) -> dict[str, object]:
+            return {"paper_id": paper_id, "status_proc": "completed"}
+
+    monkeypatch.setattr(sys, "argv", ["cli.py", "bridge", "status", "paper-123"])
+    monkeypatch.setattr(bridge_cli, "load_config", lambda: object())
+    monkeypatch.setattr(bridge_cli, "VictusBridge", FakeBridge)
+
+    cli.main()
+
+    captured = capsys.readouterr()
+    assert '"paper_id": "paper-123"' in captured.out
+    assert '"status_proc": "completed"' in captured.out
 
 
 def test_main_routes_pipeline_run_with_runners(monkeypatch, tmp_path: Path) -> None:
